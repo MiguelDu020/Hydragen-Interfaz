@@ -1,0 +1,23 @@
+// Colores (del mockup)
+$bg-primary: #0a0a0a;
+$bg-card: #141414;
+$bg-surface: #1c1c1c;
+$accent-blue: #007bff;
+$accent-blue-light: #3b9eff;
+$accent-hover: #0056b3;
+$text-primary: #ffffff;
+$text-secondary: #a0a0a0;
+$border-color: #2a2a2a;
+$success: #22c55e;
+$danger: #ef4444;
+$warning: #f59e0b;
+
+// Resiliencia (colores por patrón)
+$bulkhead-color: #8b5cf6;    // violeta
+$fallback-color: #f59e0b;    // amarillo
+$loadshedding-color: #ef4444; // rojo
+
+// Tipografía
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono&display=swap');
+$font-primary: 'Inter', sans-serif;
+$font-mono: 'JetBrains Mono', monospace;
