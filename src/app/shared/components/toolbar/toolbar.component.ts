@@ -182,40 +182,47 @@ export class ToolbarComponent {
   loadExample(): void {
     const example: HydraGenConfig = {
       settings: {
-        logging: false,
-        development: false,
-        base_image: 'ubuntu:20.04'
+        logging: true,
+        development: true,
+        base_image: ''
       },
-      cluster_latencies: [
-        { src: 'cluster1', dest: 'cluster2', latency: 25 }
-      ],
+      cluster_latencies: null as any,
       services: [
         {
-          name: 'frontend',
+          name: 'service1',
           protocol: 'http',
-          clusters: [{ cluster: 'cluster1', replicas: 2, namespace: 'default' }],
+          clusters: [
+            {
+              cluster: 'kubernetes-admin-k8s',
+              replicas: 2,
+              namespace: 'hydragen'
+            }
+          ],
           resources: {
-            limits: { cpu: '1000m', memory: '1024Mi' },
-            requests: { cpu: '500m', memory: '512Mi' }
+            limits: { cpu: '500m', memory: '512M' },
+            requests: { cpu: '250m', memory: '256M' }
           },
-          processes: 0,
-          readiness_probe: 1,
+          processes: 1,
+          readiness_probe: 2,
           endpoints: [
             {
-              name: 'home',
+              name: 'end1',
               execution_mode: 'sequential',
-              cpu_complexity: { execution_time: 0.2, threads: 1 },
+              cpu_complexity: {
+                execution_time: 0.002,
+                threads: 1
+              },
               network_complexity: {
                 forward_requests: 'synchronous',
-                response_payload_size: 64,
+                response_payload_size: 256,
                 called_services: [
                   {
-                    service: 'backend',
-                    endpoint: 'api',
+                    service: 'service2',
                     port: 80,
+                    endpoint: 'end1',
                     protocol: 'http',
                     traffic_forward_ratio: 1,
-                    request_payload_size: 16
+                    request_payload_size: 128
                   }
                 ]
               }
@@ -224,23 +231,74 @@ export class ToolbarComponent {
           resilience_patterns: {}
         },
         {
-          name: 'backend',
+          name: 'service2',
           protocol: 'http',
-          clusters: [{ cluster: 'cluster2', replicas: 1, namespace: 'default' }],
+          clusters: [
+            {
+              cluster: 'kubernetes-admin-k8s',
+              replicas: 2,
+              namespace: 'hydragen'
+            }
+          ],
           resources: {
-            limits: { cpu: '1000m', memory: '1024Mi' },
-            requests: { cpu: '500m', memory: '512Mi' }
+            limits: { cpu: '500m', memory: '512M' },
+            requests: { cpu: '250m', memory: '256M' }
           },
-          processes: 0,
-          readiness_probe: 1,
+          processes: 1,
+          readiness_probe: 2,
           endpoints: [
             {
-              name: 'api',
+              name: 'end1',
               execution_mode: 'sequential',
-              cpu_complexity: { execution_time: 0.3, threads: 2 },
+              cpu_complexity: {
+                execution_time: 0.003,
+                threads: 1
+              },
               network_complexity: {
                 forward_requests: 'synchronous',
-                response_payload_size: 128,
+                response_payload_size: 256,
+                called_services: [
+                  {
+                    service: 'service3',
+                    port: 80,
+                    endpoint: 'end1',
+                    protocol: 'http',
+                    traffic_forward_ratio: 1,
+                    request_payload_size: 128
+                  }
+                ]
+              }
+            }
+          ],
+          resilience_patterns: {}
+        },
+        {
+          name: 'service3',
+          protocol: 'http',
+          clusters: [
+            {
+              cluster: 'kubernetes-admin-k8s',
+              replicas: 1,
+              namespace: 'hydragen'
+            }
+          ],
+          resources: {
+            limits: { cpu: '300m', memory: '256M' },
+            requests: { cpu: '150m', memory: '128M' }
+          },
+          processes: 1,
+          readiness_probe: 2,
+          endpoints: [
+            {
+              name: 'end1',
+              execution_mode: 'sequential',
+              cpu_complexity: {
+                execution_time: 0.005,
+                threads: 1
+              },
+              network_complexity: {
+                forward_requests: 'none',
+                response_payload_size: 512,
                 called_services: []
               }
             }

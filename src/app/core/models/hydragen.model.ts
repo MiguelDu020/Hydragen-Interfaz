@@ -68,7 +68,7 @@ export interface CpuComplexity {
 }
 
 export interface NetworkComplexity {
-  forward_requests: 'synchronous' | 'asynchronous';
+  forward_requests: 'synchronous' | 'asynchronous' | 'none';
   response_payload_size: number;
   called_services: CalledService[];
 }

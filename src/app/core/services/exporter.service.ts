@@ -30,9 +30,10 @@ export class ExporterService {
     const graph = this.graphService.getGraph();
     if (!graph) throw new Error('Graph not initialized');
 
-    const config: HydraGenConfig = {
-      settings: this.graphService.getSettings(),
-      cluster_latencies: this.graphService.getClusterLatencies(),
+    const latencies = this.graphService.getClusterLatencies();
+
+    const config: any = {
+      cluster_latencies: latencies && latencies.length > 0 ? latencies : null,
       services: []
     };
 
@@ -41,27 +42,36 @@ export class ExporterService {
 
     nodes.forEach(node => {
       const nodeData = (node.getData() || {}) as any;
-      const clusters = (nodeData.clusters || [ { cluster: 'cluster1', replicas: 1, namespace: 'default' } ]).map((cluster: any) => ({
-        cluster: cluster.cluster || 'cluster1',
-        replicas: cluster.replicas ?? 1,
-        namespace: cluster.namespace || 'default',
-        node: cluster.node || '',
-        annotations: this.normalizeAnnotations(cluster.annotations)
-      }));
+      const clusters = (nodeData.clusters || [ { cluster: 'cluster1', replicas: 1, namespace: 'default' } ]).map((cluster: any) => {
+        const c: any = {
+          cluster: cluster.cluster || 'cluster1',
+          replicas: cluster.replicas ?? 1,
+          namespace: cluster.namespace || 'default'
+        };
+        if (cluster.node) c.node = cluster.node;
+        const annotations = this.normalizeAnnotations(cluster.annotations);
+        if (Object.keys(annotations).length > 0) c.annotations = annotations;
+        return c;
+      });
 
-      const service: Service = {
+      const service: any = {
         name: nodeData.name || 'unnamed-service',
-        protocol: nodeData.protocol || 'http',
         clusters,
         resources: nodeData.resources || { limits: { cpu: '1000m', memory: '1024M' }, requests: { cpu: '500m', memory: '256M' } },
         processes: nodeData.processes || 0,
         readiness_probe: nodeData.readiness_probe || 1,
-        logging: nodeData.logging ?? false,
-        development: nodeData.development ?? false,
-        base_image: nodeData.base_image || 'ubuntu:20.04',
-        endpoints: nodeData.endpoints || [],
-        resilience_patterns: nodeData.resilience_patterns || {}
+        protocol: nodeData.protocol || 'http',
       };
+
+      if (nodeData.logging !== undefined && nodeData.logging !== false) service.logging = nodeData.logging;
+      if (nodeData.development !== undefined && nodeData.development !== false) service.development = nodeData.development;
+      if (nodeData.base_image) service.base_image = nodeData.base_image;
+      
+      service.endpoints = JSON.parse(JSON.stringify(nodeData.endpoints || [])); // deep copy
+
+      if (nodeData.resilience_patterns && Object.keys(nodeData.resilience_patterns).length > 0) {
+        service.resilience_patterns = nodeData.resilience_patterns;
+      }
 
       if (service.endpoints.length === 0) {
         service.endpoints.push({
@@ -73,6 +83,10 @@ export class ExporterService {
       }
 
       const outgoingEdges = edges.filter(e => e.getSourceCellId() === node.id);
+      
+      // Limpiar called_services para reconstruirlo basado en las aristas
+      service.endpoints[0].network_complexity.called_services = [];
+      
       outgoingEdges.forEach(edge => {
         const targetNode = graph.getCellById(edge.getTargetCellId() as string);
         if (targetNode && targetNode.isNode()) {
@@ -80,21 +94,25 @@ export class ExporterService {
           const edgeData = edge.getData() || {};
           const calledService: CalledService = {
             service: targetData.name || 'unknown-service',
-            endpoint: targetData.endpoints?.[0]?.name || 'default-endpoint',
-            port: edgeData.port || '80',
+            port: edgeData.port || 80,
+            endpoint: targetData.endpoints?.[0]?.name || 'end1',
             protocol: edgeData.protocol || targetData.protocol || 'http',
             traffic_forward_ratio: edgeData.traffic_forward_ratio ?? 1,
-            request_payload_size: edgeData.request_payload_size ?? 0
+            request_payload_size: edgeData.request_payload_size ?? 128
           };
-          if (!service.endpoints[0].network_complexity.called_services) {
-            service.endpoints[0].network_complexity.called_services = [];
-          }
           service.endpoints[0].network_complexity.called_services.push(calledService);
         }
       });
 
+      // Si no hay llamados, network_complexity debe estar acorde (ej. forward_requests: 'none')
+      if (service.endpoints[0].network_complexity.called_services.length === 0) {
+        service.endpoints[0].network_complexity.forward_requests = 'none';
+      }
+
       config.services.push(service);
     });
+
+    config.settings = this.graphService.getSettings();
 
     return config;
   }
