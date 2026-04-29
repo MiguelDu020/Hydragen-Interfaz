@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { ExporterService } from '../../../core/services/exporter.service';
 import { GraphService } from '../../../core/services/graph.service';
 import { HydraGenConfig } from '../../../core/models/hydragen.model';
+import { ExecutionModalComponent } from '../../../features/execution-modal/execution-modal.component';
 
 @Component({
   selector: 'app-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ExecutionModalComponent],
   template: `
     <div class="toolbar">
       <div class="left-section">
@@ -37,8 +38,29 @@ import { HydraGenConfig } from '../../../core/models/hydragen.model';
         </label>
         <button class="btn primary" (click)="exportJson()" title="Exportar JSON HydraGen">Export JSON</button>
         <button class="btn accent" (click)="preview()" title="Vista previa">Download</button>
+
+        <div class="separator"></div>
+
+        <button
+          class="btn execute"
+          id="btn-execute-benchmark"
+          (click)="openExecutionModal()"
+          [disabled]="!hasNodes"
+          [title]="hasNodes ? 'Ejecutar el pipeline HydraGen completo' : 'Agrega al menos un servicio al canvas'"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5,3 19,12 5,21"/>
+          </svg>
+          Ejecutar Benchmark
+        </button>
       </div>
     </div>
+
+    <!-- Execution Modal -->
+    <app-execution-modal
+      *ngIf="showExecutionModal"
+      (closed)="showExecutionModal = false"
+    ></app-execution-modal>
   `,
   styles: [`
     :host { display: block; background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%); border-bottom: 1px solid #333; }
@@ -81,16 +103,47 @@ import { HydraGenConfig } from '../../../core/models/hydragen.model';
       &:hover:not(:disabled) { border-color: #5a5a5a; background: #1d1d1d; }
       &.primary { border-color: #007acc; color: #d9efff; background: #0f2535; &:hover { background: #133044; } }
       &.accent  { border-color: #2f9e5a; color: #d8f5e3; background: #153123; &:hover { background: #1a3e2c; } }
+      &.execute {
+        border-color: #22c55e;
+        color: #000;
+        background: linear-gradient(135deg, #00b37e, #22c55e);
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, #00c98c, #2ecc71);
+          box-shadow: 0 0 14px rgba(34,197,94,0.4);
+        }
+        &:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+      }
+    }
+    .separator {
+      width: 1px;
+      height: 22px;
+      background: #2a2a2a;
+      margin: 0 4px;
     }
   `]
 })
 export class ToolbarComponent {
   @Output() openPreview = new EventEmitter<void>();
 
+  showExecutionModal = false;
+
   constructor(
     private exporterService: ExporterService,
     private graphService: GraphService
   ) {}
+
+  get hasNodes(): boolean {
+    const g = this.graphService.getGraph();
+    return !!g && g.getNodes().length > 0;
+  }
+
+  openExecutionModal(): void {
+    if (this.hasNodes) this.showExecutionModal = true;
+  }
 
   undo() {
     const g = this.graphService.getGraph();

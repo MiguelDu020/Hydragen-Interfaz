@@ -410,7 +410,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
       this.selectedEdge = edge;
       if (edge) {
         this.mode = 'edge';
-        this.edgeData = { ...edge.getData() } || {};
+        this.edgeData = { ...(edge.getData() ?? {}) };
         this.loadSourceEndpoints(edge);
       } else {
         this.mode = 'global';
