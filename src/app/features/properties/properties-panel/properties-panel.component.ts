@@ -1,490 +1,488 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Node } from '@antv/x6';
-import { GlobalSettings, ClusterLatency } from '../../../core/models/hydragen.model';
+import { Subscription } from 'rxjs';
+import { Node, Edge } from '@antv/x6';
+
 import { GraphService } from '../../../core/services/graph.service';
+import { GlobalSettings, ClusterLatency } from '../../../core/models/hydragen.model';
+
+import { GeneralTabComponent }    from '../tabs/general-tab/general-tab.component';
+import { ResourcesTabComponent }  from '../tabs/resources-tab/resources-tab.component';
+import { ClustersTabComponent }   from '../tabs/clusters-tab/clusters-tab.component';
+import { EndpointsTabComponent }  from '../tabs/endpoints-tab/endpoints-tab.component';
+import { ResilienceTabComponent } from '../tabs/resilience-tab/resilience-tab.component';
+
+type PanelMode = 'node' | 'edge' | 'global';
 
 @Component({
   selector: 'app-properties-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule, FormsModule,
+    GeneralTabComponent, ResourcesTabComponent,
+    ClustersTabComponent, EndpointsTabComponent,
+    ResilienceTabComponent
+  ],
   template: `
-    <div class="panel-container" *ngIf="selectedNode; else globalSettingsTemplate">
-      <div class="header">
-        <h3>Service Properties</h3>
-        <span class="node-id">{{ selectedNode.id.substring(0,8) }}</span>
-      </div>
+    <!-- ═══════════════════════════════════════ NODE PANEL ════════════════ -->
+    <ng-container *ngIf="mode === 'node'">
+      <div class="panel-container">
+        <div class="header">
+          <div class="header-left">
+            <span class="header-icon">◉</span>
+            <div>
+              <div class="header-title">{{ pendingData?.name || 'Service' }}</div>
+              <div class="header-sub">Service Properties</div>
+            </div>
+          </div>
+          <span class="node-id">{{ selectedNode!.id.substring(0,8) }}</span>
+        </div>
 
-      <div class="tabs">
-        <button [class.active]="activeTab === 'general'" (click)="activeTab = 'general'">General</button>
-        <button [class.active]="activeTab === 'clusters'" (click)="activeTab = 'clusters'">Clusters</button>
-        <button [class.active]="activeTab === 'resources'" (click)="activeTab = 'resources'">Resources</button>
-        <button [class.active]="activeTab === 'endpoints'" (click)="activeTab = 'endpoints'">Endpoints</button>
-        <button [class.active]="activeTab === 'resilience'" (click)="activeTab = 'resilience'">Resilience</button>
-      </div>
+        <div class="tabs">
+          <button [class.active]="activeTab==='general'"    (click)="activeTab='general'">General</button>
+          <button [class.active]="activeTab==='resources'"  (click)="activeTab='resources'">Resources</button>
+          <button [class.active]="activeTab==='clusters'"   (click)="activeTab='clusters'">Clusters</button>
+          <button [class.active]="activeTab==='endpoints'"  (click)="activeTab='endpoints'">Endpoints</button>
+          <button [class.active]="activeTab==='resilience'" (click)="activeTab='resilience'">Resilience</button>
+        </div>
 
-      <div class="tab-content">
-        <ng-container [ngSwitch]="activeTab">
-          <div *ngSwitchCase="'general'">
+        <div class="tab-content">
+          <app-general-tab    *ngIf="activeTab==='general'"    [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-general-tab>
+          <app-resources-tab  *ngIf="activeTab==='resources'"  [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-resources-tab>
+          <app-clusters-tab   *ngIf="activeTab==='clusters'"   [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-clusters-tab>
+          <app-endpoints-tab  *ngIf="activeTab==='endpoints'"  [nodeData]="pendingData" [nodeId]="selectedNode!.id" (dataChange)="pendingData=$event"></app-endpoints-tab>
+          <app-resilience-tab *ngIf="activeTab==='resilience'" [nodeData]="pendingData" (goToEndpoints)="activeTab='endpoints'"></app-resilience-tab>
+        </div>
+
+        <div class="footer">
+          <button class="btn-apply" (click)="applyNodeData()">✓ Aplicar</button>
+        </div>
+      </div>
+    </ng-container>
+
+    <!-- ═══════════════════════════════════════ EDGE PANEL ════════════════ -->
+    <ng-container *ngIf="mode === 'edge'">
+      <div class="panel-container">
+        <div class="header">
+          <div class="header-left">
+            <span class="header-icon edge-icon">→</span>
+            <div>
+              <div class="header-title">Conexión</div>
+              <div class="header-sub">Edge Properties</div>
+            </div>
+          </div>
+          <span class="node-id">{{ selectedEdge!.id.substring(0,8) }}</span>
+        </div>
+
+        <div class="tab-content edge-content" *ngIf="edgeData">
+          <!-- Source endpoint selector -->
+          <div class="field">
+            <label>Endpoint fuente (del nodo origen)</label>
+            <select [(ngModel)]="edgeData.sourceEndpoint" (ngModelChange)="applyEdgeData()">
+              <option *ngFor="let ep of sourceEndpoints" [value]="ep">{{ ep }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Endpoint destino</label>
+            <input type="text" [(ngModel)]="edgeData.targetEndpoint" (ngModelChange)="applyEdgeData()" placeholder="end1" />
+          </div>
+          <div class="field-row">
             <div class="field">
-              <label>Service Name</label>
-              <input type="text" [value]="nodeData?.name || ''" (input)="updateData('name', $event)" />
+              <label>Puerto</label>
+              <input type="number" [(ngModel)]="edgeData.port" (ngModelChange)="applyEdgeData()" />
             </div>
             <div class="field">
-              <label>Protocol</label>
-              <select [value]="nodeData?.protocol || 'http'" (change)="updateData('protocol', $event)">
+              <label>Protocolo</label>
+              <select [(ngModel)]="edgeData.protocol" (ngModelChange)="applyEdgeData()">
                 <option value="http">HTTP</option>
                 <option value="grpc">gRPC</option>
               </select>
             </div>
+          </div>
+          <div class="field-row">
             <div class="field">
-              <label>Processes</label>
-              <input type="number" [value]="nodeData?.processes || 0" (input)="updateData('processes', $event)" />
-            </div>
-            <div class="field">
-              <label>Readiness Probe (seconds)</label>
-              <input type="number" [value]="nodeData?.readiness_probe || 1" (input)="updateData('readiness_probe', $event)" />
-            </div>
-            <div class="field checkbox-field">
-              <label>
-                <input type="checkbox" [checked]="nodeData?.logging" (change)="updateData('logging', $event, true)" /> Enable Logging
-              </label>
-            </div>
-            <div class="field checkbox-field">
-              <label>
-                <input type="checkbox" [checked]="nodeData?.development" (change)="updateData('development', $event, true)" /> Development Mode
-              </label>
+              <label>Traffic Forward Ratio</label>
+              <input type="number" min="0" step="0.1" [(ngModel)]="edgeData.traffic_forward_ratio" (ngModelChange)="applyEdgeData()" />
             </div>
             <div class="field">
-              <label>Base Image</label>
-              <input type="text" [value]="nodeData?.base_image || 'ubuntu:20.04'" (input)="updateData('base_image', $event)" />
+              <label>Request Payload (chars)</label>
+              <input type="number" min="0" [(ngModel)]="edgeData.request_payload_size" (ngModelChange)="applyEdgeData()" />
             </div>
           </div>
 
-          <div *ngSwitchCase="'clusters'">
-            <p class="help-text">Define one or more clusters for this service.</p>
-            <div class="list-group">
-              <div class="list-item" *ngFor="let cluster of nodeData?.clusters || []; let i = index">
-                <div class="field inline">
-                  <label>Cluster Name</label>
-                  <input type="text" [value]="cluster.cluster" (input)="updateNested('clusters.' + i + '.cluster', $event)" />
-                </div>
-                <div class="field inline">
-                  <label>Replicas</label>
-                  <input type="number" [value]="cluster.replicas" (input)="updateNested('clusters.' + i + '.replicas', $event)" />
-                </div>
-                <div class="field inline">
-                  <label>Namespace</label>
-                  <input type="text" [value]="cluster.namespace" (input)="updateNested('clusters.' + i + '.namespace', $event)" />
-                </div>
-                <div class="field inline">
-                  <label>Node</label>
-                  <input type="text" [value]="cluster.node" (input)="updateNested('clusters.' + i + '.node', $event)" />
-                </div>
-                <button class="btn-remove" (click)="removeCluster(i)">Remove cluster</button>
-              </div>
-            </div>
-            <button class="btn-add" (click)="addCluster()">Add Cluster</button>
-          </div>
+          <div class="divider"></div>
+          <div class="section-label">Activación de patrones</div>
+          <p class="hint-small">Solo disponibles si el endpoint fuente tiene el patrón configurado.</p>
 
-          <div *ngSwitchCase="'resources'">
-            <p class="help-text">Set resource requests and limits for the selected service.</p>
-            <div class="field inline">
-              <label>CPU Request</label>
-              <input type="text" [value]="getNested('resources.requests.cpu') || ''" (input)="updateNested('resources.requests.cpu', $event)" />
-            </div>
-            <div class="field inline">
-              <label>Memory Request</label>
-              <input type="text" [value]="getNested('resources.requests.memory') || ''" (input)="updateNested('resources.requests.memory', $event)" />
-            </div>
-            <div class="field inline">
-              <label>CPU Limit</label>
-              <input type="text" [value]="getNested('resources.limits.cpu') || ''" (input)="updateNested('resources.limits.cpu', $event)" />
-            </div>
-            <div class="field inline">
-              <label>Memory Limit</label>
-              <input type="text" [value]="getNested('resources.limits.memory') || ''" (input)="updateNested('resources.limits.memory', $event)" />
-            </div>
-          </div>
-
-          <div *ngSwitchCase="'endpoints'">
-            <p class="help-text">Create and manage endpoint behavior, CPU complexity, and service calls.</p>
-            <div class="list-group">
-              <div class="list-item" *ngFor="let endpoint of nodeData?.endpoints || []; let ei = index">
-                <div class="field inline">
-                  <label>Endpoint Name</label>
-                  <input type="text" [value]="endpoint.name" (input)="updateNested('endpoints.' + ei + '.name', $event)" />
-                </div>
-                <div class="field inline">
-                  <label>Execution Mode</label>
-                  <select [value]="endpoint.execution_mode" (change)="updateNested('endpoints.' + ei + '.execution_mode', $event)">
-                    <option value="sequential">Sequential</option>
-                    <option value="parallel">Parallel</option>
-                  </select>
-                </div>
-                <div class="field inline">
-                  <label>Execution Time</label>
-                  <input type="number" step="0.1" [value]="endpoint.cpu_complexity?.execution_time" (input)="updateNested('endpoints.' + ei + '.cpu_complexity.execution_time', $event)" />
-                </div>
-                <div class="field inline">
-                  <label>Threads</label>
-                  <input type="number" [value]="endpoint.cpu_complexity?.threads" (input)="updateNested('endpoints.' + ei + '.cpu_complexity.threads', $event)" />
-                </div>
-                <div class="field inline">
-                  <label>Forward Requests</label>
-                  <select [value]="endpoint.network_complexity?.forward_requests" (change)="updateNested('endpoints.' + ei + '.network_complexity.forward_requests', $event)">
-                    <option value="synchronous">Synchronous</option>
-                    <option value="asynchronous">Asynchronous</option>
-                  </select>
-                </div>
-                <div class="field inline">
-                  <label>Payload Size</label>
-                  <input type="number" [value]="endpoint.network_complexity?.response_payload_size" (input)="updateNested('endpoints.' + ei + '.network_complexity.response_payload_size', $event)" />
-                </div>
-                <div class="subsection">
-                  <h4>Called Services</h4>
-                  <div class="sub-list" *ngFor="let call of endpoint.network_complexity?.called_services || []; let ci = index">
-                    <div class="field inline">
-                      <label>Service Name</label>
-                      <input type="text" [value]="call.service" (input)="updateNested('endpoints.' + ei + '.network_complexity.called_services.' + ci + '.service', $event)" />
-                    </div>
-                    <div class="field inline">
-                      <label>Endpoint</label>
-                      <input type="text" [value]="call.endpoint" (input)="updateNested('endpoints.' + ei + '.network_complexity.called_services.' + ci + '.endpoint', $event)" />
-                    </div>
-                    <div class="field inline">
-                      <label>Port</label>
-                      <input type="text" [value]="call.port" (input)="updateNested('endpoints.' + ei + '.network_complexity.called_services.' + ci + '.port', $event)" />
-                    </div>
-                    <div class="field inline">
-                      <label>Protocol</label>
-                      <select [value]="call.protocol" (change)="updateNested('endpoints.' + ei + '.network_complexity.called_services.' + ci + '.protocol', $event)">
-                        <option value="http">HTTP</option>
-                        <option value="grpc">gRPC</option>
-                      </select>
-                    </div>
-                    <div class="field inline">
-                      <label>Traffic Ratio</label>
-                      <input type="number" step="0.1" [value]="call.traffic_forward_ratio" (input)="updateNested('endpoints.' + ei + '.network_complexity.called_services.' + ci + '.traffic_forward_ratio', $event)" />
-                    </div>
-                    <div class="field inline">
-                      <label>Request Payload</label>
-                      <input type="number" [value]="call.request_payload_size" (input)="updateNested('endpoints.' + ei + '.network_complexity.called_services.' + ci + '.request_payload_size', $event)" />
-                    </div>
-                    <button class="btn-remove" (click)="removeCalledService(ei, ci)">Remove call</button>
-                  </div>
-                  <button class="btn-add" (click)="addCalledService(ei)">Add Called Service</button>
-                </div>
-                <button class="btn-remove" (click)="removeEndpoint(ei)">Remove endpoint</button>
-              </div>
-            </div>
-            <button class="btn-add" (click)="addEndpoint()">Add Endpoint</button>
-          </div>
-
-          <div *ngSwitchCase="'resilience'">
-            <p class="help-text">Activate resilience patterns to include them in the exported configuration.</p>
-            <div class="field checkbox-field">
-              <label>
-                <input type="checkbox" [checked]="getNested('resilience_patterns.bulkhead.enabled')" (change)="updateNested('resilience_patterns.bulkhead.enabled', $event, true)" /> Bulkhead Enabled
-              </label>
-            </div>
-            <div class="field checkbox-field">
-              <label>
-                <input type="checkbox" [checked]="getNested('resilience_patterns.fallback.enabled')" (change)="updateNested('resilience_patterns.fallback.enabled', $event, true)" /> Fallback Enabled
-              </label>
-            </div>
-            <div class="field checkbox-field">
-              <label>
-                <input type="checkbox" [checked]="getNested('resilience_patterns.load_shedding.enabled')" (change)="updateNested('resilience_patterns.load_shedding.enabled', $event, true)" /> Load Shedding Enabled
-              </label>
-            </div>
-          </div>
-        </ng-container>
+          <label class="flag-row" [class.disabled]="!sourceEndpointHasTimeout()">
+            <input type="checkbox" [(ngModel)]="edgeData.active_timeout" (ngModelChange)="applyEdgeData()" [disabled]="!sourceEndpointHasTimeout()" />
+            <span class="to-lbl">Activar Timeout</span>
+          </label>
+          <label class="flag-row" [class.disabled]="!sourceEndpointHasRetry()">
+            <input type="checkbox" [(ngModel)]="edgeData.active_retry" (ngModelChange)="applyEdgeData()" [disabled]="!sourceEndpointHasRetry()" />
+            <span class="rt-lbl">Activar Retry</span>
+          </label>
+          <label class="flag-row" [class.disabled]="!sourceEndpointHasFallback()">
+            <input type="checkbox" [(ngModel)]="edgeData.active_fallback" (ngModelChange)="applyEdgeData()" [disabled]="!sourceEndpointHasFallback()" />
+            <span class="fb-lbl">Activar Fallback</span>
+          </label>
+        </div>
       </div>
-    </div>
+    </ng-container>
 
-    <ng-template #globalSettingsTemplate>
+    <!-- ═══════════════════════════════════════ GLOBAL PANEL ═════════════ -->
+    <ng-container *ngIf="mode === 'global'">
       <div class="panel-container">
         <div class="header">
-          <h3>Global Settings</h3>
-          <span class="node-id">Root configuration</span>
-        </div>
-        <div class="tab-content">
-          <p class="help-text">Click blank canvas to edit global HydraGen settings.</p>
-          <div class="field checkbox-field">
-            <label>
-              <input type="checkbox" [checked]="settings.logging" (change)="updateGlobalSetting('logging', $event, true)" /> Enable Logging
-            </label>
-          </div>
-          <div class="field checkbox-field">
-            <label>
-              <input type="checkbox" [checked]="settings.development" (change)="updateGlobalSetting('development', $event, true)" /> Development Mode
-            </label>
-          </div>
-          <div class="field">
-            <label>Base Image</label>
-            <input type="text" [value]="settings.base_image" (input)="updateGlobalSetting('base_image', $event)" />
-          </div>
-          <div class="help-text">Optional cluster latencies can be used for performance modeling.</div>
-          <div class="list-group">
-            <div class="list-item" *ngFor="let latency of clusterLatencies || []; let i = index">
-              <div class="field inline">
-                <label>Source</label>
-                <input type="text" [value]="latency.src" (input)="updateLatency(i, 'src', $event)" />
-              </div>
-              <div class="field inline">
-                <label>Destination</label>
-                <input type="text" [value]="latency.dest" (input)="updateLatency(i, 'dest', $event)" />
-              </div>
-              <div class="field inline">
-                <label>Latency (ms)</label>
-                <input type="number" [value]="latency.latency" (input)="updateLatency(i, 'latency', $event)" />
-              </div>
-              <button class="btn-remove" (click)="removeLatency(i)">Remove latency</button>
+          <div class="header-left">
+            <span class="header-icon">⚙</span>
+            <div>
+              <div class="header-title">Global Settings</div>
+              <div class="header-sub">Configuración de HydraGen</div>
             </div>
           </div>
-          <button class="btn-add" (click)="addLatency()">Add Latency</button>
+        </div>
+
+        <div class="tab-content">
+          <div class="empty-hint" *ngIf="!settings">Cargando…</div>
+          <ng-container *ngIf="settings">
+            <div class="section-label">Ajustes globales</div>
+            <label class="flag-row">
+              <input type="checkbox" [(ngModel)]="settings.logging" (ngModelChange)="saveSettings()" />
+              <span>Logging</span>
+            </label>
+            <label class="flag-row">
+              <input type="checkbox" [(ngModel)]="settings.development" (ngModelChange)="saveSettings()" />
+              <span>Development Mode</span>
+            </label>
+            <div class="field">
+              <label>Base Image</label>
+              <input type="text" [(ngModel)]="settings.base_image" (ngModelChange)="saveSettings()" placeholder="ubuntu:20.04" />
+            </div>
+
+            <div class="divider"></div>
+            <div class="section-label">Cluster Latencies</div>
+            <div class="latency-item" *ngFor="let lat of clusterLatencies; let i = index">
+              <div class="field-row">
+                <div class="field">
+                  <label>Origen</label>
+                  <input type="text" [(ngModel)]="lat.src" (ngModelChange)="saveLatencies()" />
+                </div>
+                <div class="field">
+                  <label>Destino</label>
+                  <input type="text" [(ngModel)]="lat.dest" (ngModelChange)="saveLatencies()" />
+                </div>
+                <div class="field">
+                  <label>Latencia (s)</label>
+                  <input type="number" step="0.001" [(ngModel)]="lat.latency" (ngModelChange)="saveLatencies()" />
+                </div>
+              </div>
+              <button class="btn-remove-sm" (click)="removeLatency(i)">✕</button>
+            </div>
+            <button class="btn-add-sm" (click)="addLatency()">+ Agregar Latencia</button>
+
+            <div class="empty-hint" style="margin-top:24px; text-align:center; font-size:11px;">
+              Arrastra un <strong>Service</strong> al canvas para comenzar
+            </div>
+          </ng-container>
         </div>
       </div>
-    </ng-template>
+    </ng-container>
   `,
   styles: [`
     @use '../../../../styles/variables' as *;
-    
+
+    :host {
+      display: block;
+      height: 100%;
+      background: $bg-card;
+      border-left: 1px solid $border-color;
+      overflow: hidden;
+    }
+
     .panel-container {
       height: 100%;
       display: flex;
       flex-direction: column;
     }
-    
+
+    /* ── Header ── */
     .header {
-      padding: 16px;
+      padding: 14px 16px;
       border-bottom: 1px solid $border-color;
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      h3 { margin: 0; font-size: 16px; font-weight: 500; }
-      .node-id { color: $text-secondary; font-size: 12px; }
+      flex-shrink: 0;
     }
-    
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header-icon {
+      font-size: 18px;
+      color: $accent-blue;
+      &.edge-icon { color: #a0a0a0; }
+    }
+    .header-title  { font-size: 14px; font-weight: 600; color: $text-primary; }
+    .header-sub    { font-size: 10px; color: $text-secondary; }
+    .node-id       { font-size: 10px; color: $text-secondary; font-family: monospace; }
+
+    /* ── Tabs ── */
     .tabs {
       display: flex;
       border-bottom: 1px solid $border-color;
-      overflow-x: auto;
-      
+      flex-shrink: 0;
       button {
         flex: 1;
         background: transparent;
         border: none;
         border-bottom: 2px solid transparent;
         color: $text-secondary;
-        padding: 10px 4px;
-        font-size: 12px;
+        padding: 9px 4px;
+        font-size: 11px;
         border-radius: 0;
-        
-        &.active {
-          color: $accent-blue;
-          border-bottom-color: $accent-blue;
-        }
+        cursor: pointer;
+        transition: all 0.15s;
+        &.active { color: $accent-blue; border-bottom-color: $accent-blue; }
+        &:hover:not(.active) { color: $text-primary; }
       }
     }
-    
+
+    /* ── Tab content ── */
     .tab-content {
       padding: 16px;
       flex: 1;
       overflow-y: auto;
+      &.edge-content { display: flex; flex-direction: column; gap: 12px; }
     }
-    
+
+    /* ── Footer ── */
+    .footer {
+      padding: 12px 16px;
+      border-top: 1px solid $border-color;
+      flex-shrink: 0;
+    }
+    .btn-apply {
+      width: 100%;
+      background: $accent-blue;
+      color: white;
+      border: none;
+      padding: 9px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      &:hover { background: $accent-hover; }
+    }
+
+    /* ── Shared field styles ── */
     .field {
-      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      label { font-size: 11px; color: $text-secondary; }
+      input, select { width: 100%; font-size: 12px; }
+    }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: $accent-blue;
+      margin-bottom: 8px;
+    }
+
+    .divider {
+      height: 1px;
+      background: $border-color;
+      margin: 8px 0;
+    }
+
+    .flag-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: $text-primary;
+      cursor: pointer;
+      padding: 4px 0;
+      input { width: auto; accent-color: $accent-blue; }
+      .to-lbl { color: #7dd3fc; }
+      .rt-lbl { color: #bef264; }
+      .fb-lbl { color: #fcd34d; }
+      &.disabled { opacity: 0.4; cursor: not-allowed; }
+    }
+
+    .hint-small { font-size: 10px; color: $text-secondary; }
+
+    /* ── Global panel ── */
+    .latency-item {
+      background: $bg-surface;
+      border: 1px solid $border-color;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
       display: flex;
       flex-direction: column;
       gap: 6px;
-      
-      label { font-size: 12px; color: $text-secondary; display: flex; align-items: center; gap: 6px; }
-      input[type="text"], input[type="number"], select { width: 100%; }
-      input[type="checkbox"] { width: auto; }
     }
-    
-    .empty-state {
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .btn-remove-sm {
+      align-self: flex-end;
+      background: transparent;
+      border: 1px solid $danger;
+      color: $danger;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      &:hover { background: $danger; color: white; }
+    }
+    .btn-add-sm {
+      background: transparent;
+      border: 1px dashed $border-color;
       color: $text-secondary;
-      font-size: 14px;
+      padding: 7px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      width: 100%;
+      &:hover { border-color: $accent-blue; color: $accent-blue; }
+    }
+    .empty-hint {
+      color: $text-secondary;
+      font-size: 12px;
+      padding: 8px 0;
+      strong { color: $accent-blue; }
     }
   `]
 })
-export class PropertiesPanelComponent implements OnInit {
-  selectedNode: Node | null = null;
-  nodeData: any = {};
+export class PropertiesPanelComponent implements OnInit, OnDestroy {
+  mode: PanelMode = 'global';
   activeTab = 'general';
-  settings: GlobalSettings = { logging: false, development: false, base_image: 'ubuntu:20.04' };
+
+  // Node
+  selectedNode: Node | null = null;
+  pendingData: any = {};
+
+  // Edge
+  selectedEdge: Edge | null = null;
+  edgeData: any = {};
+  sourceEndpoints: string[] = [];
+
+  // Global
+  settings: GlobalSettings = { logging: false, development: false, base_image: '' };
   clusterLatencies: ClusterLatency[] = [];
 
-  constructor(private graphService: GraphService, private cdr: ChangeDetectorRef) {}
+  private subs = new Subscription();
+
+  constructor(
+    private graphService: GraphService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit() {
     this.settings = this.graphService.getSettings();
-    this.clusterLatencies = this.graphService.getClusterLatencies();
+    this.clusterLatencies = [...this.graphService.getClusterLatencies()];
 
-    this.graphService.nodeSelected$.subscribe((node: any) => {
+    this.subs.add(this.graphService.nodeSelected$.subscribe(node => {
+      this.selectedEdge = null;
       this.selectedNode = node;
       if (node) {
-        this.nodeData = { ...node.getData() } || {};
+        this.mode = 'node';
+        this.pendingData = JSON.parse(JSON.stringify(node.getData() || {}));
+        this.activeTab = 'general';
       } else {
-        this.nodeData = {};
+        this.mode = 'global';
         this.settings = this.graphService.getSettings();
-        this.clusterLatencies = this.graphService.getClusterLatencies();
+        this.clusterLatencies = [...this.graphService.getClusterLatencies()];
       }
-      this.activeTab = 'general';
       this.cdr.detectChanges();
-    });
-  }
+    }));
 
-  setNodeData(data: any) {
-    if (!this.selectedNode) return;
-    this.selectedNode.setData(data);
-    this.nodeData = data;
-    this.refreshNodeVisuals();
-  }
-
-  refreshNodeVisuals() {
-    if (!this.selectedNode) return;
-    const data = this.nodeData || {};
-    this.selectedNode.attr({
-      title: { text: data.name || 'Service' },
-      badge: { text: (data.protocol || 'http').toUpperCase() },
-      line1: { text: `⚡ ${data.resources?.limits?.cpu || '1000m'} / ${data.resources?.requests?.cpu || '500m'}` },
-      line2: { text: `🔁 ${data.clusters?.[0]?.replicas ?? 1} | 📦 ${data.clusters?.[0]?.cluster || 'cluster1'}` }
-    });
-  }
-
-  getNested(path: string): any {
-    const keys = path.split('.');
-    let current = this.nodeData;
-    for (const key of keys) {
-      if (current === undefined || current === null) return undefined;
-      current = current[key];
-    }
-    return current;
-  }
-
-  parseValue(target: HTMLInputElement, isCheckbox = false) {
-    if (isCheckbox) return target.checked;
-    if (target.type === 'number') return target.value === '' ? undefined : Number(target.value);
-    return target.value;
-  }
-
-  updateData(key: string, event: Event, isCheckbox = false) {
-    if (!this.selectedNode) return;
-    const target = event.target as HTMLInputElement;
-    const value = this.parseValue(target, isCheckbox);
-    const newData = { ...this.selectedNode.getData(), [key]: value };
-    this.setNodeData(newData);
-  }
-
-  updateNested(path: string, event: Event, isCheckbox = false) {
-    if (!this.selectedNode) return;
-    const target = event.target as HTMLInputElement;
-    const value = this.parseValue(target, isCheckbox);
-    const keys = path.split('.');
-    const newData = JSON.parse(JSON.stringify(this.selectedNode.getData() || {}));
-    let current = newData;
-
-    for (let i = 0; i < keys.length - 1; i++) {
-      const key = keys[i];
-      const nextKey = keys[i + 1];
-      if (current[key] === undefined || current[key] === null) {
-        current[key] = isNaN(Number(nextKey)) ? {} : [];
+    this.subs.add(this.graphService.edgeSelected$.subscribe(edge => {
+      this.selectedNode = null;
+      this.selectedEdge = edge;
+      if (edge) {
+        this.mode = 'edge';
+        this.edgeData = { ...edge.getData() } || {};
+        this.loadSourceEndpoints(edge);
+      } else {
+        this.mode = 'global';
+        this.settings = this.graphService.getSettings();
+        this.clusterLatencies = [...this.graphService.getClusterLatencies()];
       }
-      current = current[key];
+      this.cdr.detectChanges();
+    }));
+  }
+
+  ngOnDestroy() { this.subs.unsubscribe(); }
+
+  /* ═══════════ Node ═══════════ */
+  applyNodeData() {
+    if (!this.selectedNode) return;
+    this.selectedNode.setData(this.pendingData);
+    this.graphService.refreshNodeVisuals(this.selectedNode);
+    this.cdr.detectChanges();
+  }
+
+  /* ═══════════ Edge ═══════════ */
+  private loadSourceEndpoints(edge: Edge) {
+    const graph = this.graphService.getGraph();
+    if (!graph) return;
+    const srcCell = graph.getCellById(edge.getSourceCellId() as string);
+    const srcData = (srcCell?.isNode() ? (srcCell as any).getData() : {}) || {};
+    this.sourceEndpoints = (srcData.endpoints || []).map((ep: any) => ep.name).filter(Boolean);
+    if (this.sourceEndpoints.length > 0 && !this.edgeData.sourceEndpoint) {
+      this.edgeData.sourceEndpoint = this.sourceEndpoints[0];
     }
-
-    current[keys[keys.length - 1]] = value;
-    this.setNodeData(newData);
   }
 
-  addCluster() {
-    const clusters = this.nodeData.clusters || [];
-    clusters.push({ cluster: 'cluster1', replicas: 1, namespace: 'default', node: '', annotations: {} });
-    this.setNodeData({ ...this.nodeData, clusters });
+  applyEdgeData() {
+    if (!this.selectedEdge) return;
+    this.selectedEdge.setData({ ...this.edgeData });
   }
 
-  removeCluster(index: number) {
-    const clusters = [...(this.nodeData.clusters || [])];
-    clusters.splice(index, 1);
-    this.setNodeData({ ...this.nodeData, clusters });
+  sourceEndpointHasTimeout(): boolean {
+    return this.getSourceEndpointData()?.resilience_patterns?.timeout != null;
+  }
+  sourceEndpointHasRetry(): boolean {
+    return this.getSourceEndpointData()?.resilience_patterns?.retry != null;
+  }
+  sourceEndpointHasFallback(): boolean {
+    return this.getSourceEndpointData()?.resilience_patterns?.fallback != null;
   }
 
-  addEndpoint() {
-    const endpoints = this.nodeData.endpoints || [];
-    endpoints.push({
-      name: 'new-endpoint',
-      execution_mode: 'sequential',
-      cpu_complexity: { execution_time: 0.1, threads: 1 },
-      network_complexity: { forward_requests: 'synchronous', response_payload_size: 0, called_services: [] }
-    });
-    this.setNodeData({ ...this.nodeData, endpoints });
+  private getSourceEndpointData(): any {
+    const graph = this.graphService.getGraph();
+    if (!graph || !this.selectedEdge) return null;
+    const srcCell = graph.getCellById(this.selectedEdge.getSourceCellId() as string);
+    const srcData = (srcCell?.isNode() ? (srcCell as any).getData() : {}) || {};
+    const epName  = this.edgeData.sourceEndpoint;
+    return (srcData.endpoints || []).find((ep: any) => ep.name === epName) || null;
   }
 
-  removeEndpoint(index: number) {
-    const endpoints = [...(this.nodeData.endpoints || [])];
-    endpoints.splice(index, 1);
-    this.setNodeData({ ...this.nodeData, endpoints });
+  /* ═══════════ Global ═══════════ */
+  saveSettings() {
+    this.graphService.setSettings({ ...this.settings });
   }
 
-  addCalledService(endpointIndex: number) {
-    const endpoints = JSON.parse(JSON.stringify(this.nodeData.endpoints || []));
-    const endpoint = endpoints[endpointIndex] || { network_complexity: { called_services: [] } };
-    endpoint.network_complexity = endpoint.network_complexity || { forward_requests: 'synchronous', response_payload_size: 0, called_services: [] };
-    endpoint.network_complexity.called_services = endpoint.network_complexity.called_services || [];
-    endpoint.network_complexity.called_services.push({
-      service: '',
-      endpoint: '',
-      port: '80',
-      protocol: 'http',
-      traffic_forward_ratio: 1,
-      request_payload_size: 0
-    });
-    this.setNodeData({ ...this.nodeData, endpoints });
-  }
-
-  removeCalledService(endpointIndex: number, callIndex: number) {
-    const endpoints = JSON.parse(JSON.stringify(this.nodeData.endpoints || []));
-    const calledServices = endpoints[endpointIndex]?.network_complexity?.called_services || [];
-    calledServices.splice(callIndex, 1);
-    endpoints[endpointIndex].network_complexity.called_services = calledServices;
-    this.setNodeData({ ...this.nodeData, endpoints });
-  }
-
-  updateGlobalSetting(key: keyof GlobalSettings, event: Event, isCheckbox = false) {
-    const target = event.target as HTMLInputElement;
-    const value = this.parseValue(target, isCheckbox);
-    this.settings = { ...this.settings, [key]: value } as GlobalSettings;
-    this.graphService.setSettings(this.settings);
-  }
-
-  updateLatency(index: number, field: keyof ClusterLatency, event: Event) {
-    const target = event.target as HTMLInputElement;
-    const value = field === 'latency' ? Number(target.value) : target.value;
-    const latencies = [...this.clusterLatencies];
-    latencies[index] = { ...latencies[index], [field]: value } as ClusterLatency;
-    this.clusterLatencies = latencies;
-    this.graphService.setClusterLatencies(latencies);
+  saveLatencies() {
+    this.graphService.setClusterLatencies([...this.clusterLatencies]);
   }
 
   addLatency() {
-    const latencies = [...this.clusterLatencies, { src: '', dest: '', latency: 0 }];
-    this.clusterLatencies = latencies;
-    this.graphService.setClusterLatencies(latencies);
+    this.clusterLatencies = [...this.clusterLatencies, { src: '', dest: '', latency: 0 }];
+    this.saveLatencies();
   }
 
-  removeLatency(index: number) {
-    const latencies = [...this.clusterLatencies];
-    latencies.splice(index, 1);
-    this.clusterLatencies = latencies;
-    this.graphService.setClusterLatencies(latencies);
+  removeLatency(i: number) {
+    this.clusterLatencies = this.clusterLatencies.filter((_, idx) => idx !== i);
+    this.saveLatencies();
   }
 }

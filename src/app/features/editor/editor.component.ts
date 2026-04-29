@@ -8,68 +8,81 @@ import { GraphService } from '../../core/services/graph.service';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="canvas-container" #canvasContainer>
-      <!-- AntV X6 graph will be injected here -->
+    <div class="canvas-container" #canvasContainer></div>
+    <!-- Pattern drop toast -->
+    <div class="pattern-toast" *ngIf="showToast">
+      💡 Selecciona el nodo y configura el patrón en la pestaña <strong>Endpoints</strong>
     </div>
   `,
   styles: [`
-    .canvas-container {
-      width: 100%;
-      height: 100%;
-      outline: none;
+    :host { display: block; position: relative; width: 100%; height: 100%; }
+    .canvas-container { width: 100%; height: 100%; outline: none; }
+    .pattern-toast {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2d3d;
+      border: 1px solid #007acc;
+      color: #d9efff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      animation: fadeInUp 0.2s ease;
+      strong { color: #7dd3fc; }
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
   `]
 })
 export class EditorComponent implements AfterViewInit {
   @ViewChild('canvasContainer') canvasContainer!: ElementRef;
   private graph!: Graph;
+  showToast = false;
+  private toastTimer: any;
 
   constructor(private graphService: GraphService) {}
 
-  ngAfterViewInit() {
-    this.initGraph();
-  }
+  ngAfterViewInit() { this.initGraph(); }
 
   private initGraph() {
     this.graph = new Graph({
       container: this.canvasContainer.nativeElement,
       background: { color: '#0a0a0a' },
-      grid: { 
-        visible: true, 
-        type: 'dot', 
-        args: { color: '#1e1e1e', size: 20 } 
-      },
+      grid: { visible: true, type: 'dot', args: { color: '#1e1e1e', size: 20 } },
       connecting: {
         allowBlank: false,
         allowLoop: false,
-        allowMulti: false,
+        allowMulti: 'withPort',
         connector: 'rounded',
         router: 'manhattan',
         createEdge: () => new Shape.Edge({
-          attrs: {
-            line: {
-              stroke: '#a0a0a0',
-              strokeWidth: 2,
-              targetMarker: { name: 'block', size: 12 }
-            }
+          attrs: { line: { stroke: '#a0a0a0', strokeWidth: 2, targetMarker: { name: 'block', size: 12 } } },
+          data: {
+            sourceEndpoint: '',
+            targetEndpoint: 'end1',
+            port: 80,
+            protocol: 'http',
+            traffic_forward_ratio: 1,
+            request_payload_size: 0,
+            active_timeout: false,
+            active_retry: false,
+            active_fallback: false
           }
         })
       },
-      // selecting: { enabled: true, showNodeSelectionBox: true }, // Requires @antv/x6-plugin-selection in v2
-      // history: { enabled: true }, // Requires @antv/x6-plugin-history in v2
       mousewheel: { enabled: true, modifiers: ['ctrl', 'meta'] },
-      panning: { enabled: true },
+      panning: { enabled: true }
     });
 
     this.graphService.setGraph(this.graph);
-
-    // Initial root node logic? Let user drag it.
   }
 
   @HostListener('dragover', ['$event'])
-  onDragOver(event: DragEvent) {
-    event.preventDefault();
-  }
+  onDragOver(event: DragEvent) { event.preventDefault(); }
 
   @HostListener('drop', ['$event'])
   onDrop(event: DragEvent) {
@@ -79,176 +92,79 @@ export class EditorComponent implements AfterViewInit {
     const type = event.dataTransfer.getData('type');
     if (!type) return;
 
-    // Convert screen coordinates to graph local coordinates
     const point = this.graph.clientToLocal({ x: event.clientX, y: event.clientY });
+    const isPattern = ['timeout', 'retry', 'fallback'].includes(type);
 
-    const isPattern = ['fallback', 'bulkhead', 'loadshedding'].includes(type);
     if (isPattern) {
-      const node = this.graph.getNodes().find(n => {
-        const bbox = n.getBBox();
-        return point.x >= bbox.x && point.x <= bbox.x + bbox.width &&
-               point.y >= bbox.y && point.y <= bbox.y + bbox.height;
-      });
-
-      if (node) {
-        this.applyPatternToNode(node, type);
-      }
+      this.showPatternToast();
       return;
     }
 
     if (type === 'service') {
-      this.createNode(type, point.x, point.y);
+      this.createServiceNode(point.x, point.y);
     }
   }
 
-  private createNode(type: string, x: number, y: number) {
-    // Only 'service' type per user request
-    const title = 'Service';
+  private showPatternToast() {
+    this.showToast = true;
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => { this.showToast = false; }, 3500);
+  }
 
+  private createServiceNode(x: number, y: number) {
+    const name = `service-${Date.now()}`;
     this.graphService.addNode({
-      x,
-      y,
-      width: 240,
-      height: 104,
+      x, y,
+      width: 260,
+      height: 130,
       shape: 'rect',
       data: {
-        name: `service-${Date.now()}`,
+        rawType: 'service',
+        name,
         protocol: 'http',
-        clusters: [ { cluster: 'cluster1', replicas: 1, namespace: 'default' } ],
-        resources: { limits: { cpu: '1000m', memory: '1024Mi' }, requests: { cpu: '500m', memory: '512Mi' } },
-        endpoints: [],
-        resilience_patterns: {}
+        clusters: [{ cluster: 'cluster1', replicas: 1, namespace: 'default' }],
+        resources: { limits: { cpu: '1000m', memory: '1024M' }, requests: { cpu: '500m', memory: '256M' } },
+        processes: 1,
+        readiness_probe: 2,
+        logging: false,
+        development: false,
+        base_image: '',
+        endpoints: [{
+          name: 'end1',
+          execution_mode: 'sequential',
+          cpu_complexity: { execution_time: 0.001, threads: 1 },
+          network_complexity: { forward_requests: 'synchronous', response_payload_size: 0, called_services: [] }
+        }]
       },
       markup: [
         { tagName: 'rect', selector: 'bg' },
         { tagName: 'line', selector: 'divider' },
+        { tagName: 'text', selector: 'icon' },
         { tagName: 'text', selector: 'title' },
         { tagName: 'rect', selector: 'badgeBg' },
         { tagName: 'text', selector: 'badge' },
+        { tagName: 'text', selector: 'resources' },
+        { tagName: 'text', selector: 'cluster' },
         { tagName: 'text', selector: 'patternBadges' }
       ],
       attrs: {
-        bg: {
-          refWidth: '100%',
-          refHeight: '100%',
-          fill: '#1a1a1a',
-          stroke: '#333',
-          strokeWidth: 1.2,
-          rx: 10,
-          ry: 10
-        },
-        divider: {
-          x1: 0,
-          y1: 38,
-          x2: 240,
-          y2: 38,
-          stroke: '#2a2a2a',
-          strokeWidth: 1
-        },
-        title: {
-          text: title,
-          fill: '#e0e0e0',
-          fontSize: 13,
-          fontWeight: 600,
-          x: 14,
-          y: 24
-        },
-        badgeBg: {
-          fill: '#1f4460',
-          rx: 5,
-          ry: 5,
-          width: 42,
-          height: 18,
-          refX: '100%',
-          refX2: -54,
-          y: 10
-        },
-        badge: {
-          text: 'HTTP',
-          fill: '#d9efff',
-          fontSize: 9,
-          fontWeight: 600,
-          refX: '100%',
-          refX2: -50,
-          y: 22
-        },
-        patternBadges: {
-          text: '',
-          fill: '#9cc8ff',
-          fontSize: 10,
-          fontWeight: 700,
-          x: 14,
-          y: 64,
-          fontFamily: 'monospace'
-        }
+        bg:            { refWidth: '100%', refHeight: '100%', fill: '#1a1a1a', stroke: '#333', strokeWidth: 1.2, rx: 10, ry: 10 },
+        divider:       { x1: 0, y1: 42, x2: 260, y2: 42, stroke: '#2a2a2a', strokeWidth: 1 },
+        icon:          { text: '◉', fill: '#7f8c9d', fontSize: 14, x: 14, y: 26 },
+        title:         { text: name, fill: '#e0e0e0', fontSize: 13, fontWeight: 600, x: 34, y: 26 },
+        badgeBg:       { fill: '#1f4460', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
+        badge:         { text: 'HTTP', fill: '#d9efff', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },
+        resources:     { text: 'CPU 500m/1000m  MEM 256M/1024M', fill: '#a8a8a8', fontSize: 10, x: 14, y: 68, fontFamily: 'monospace' },
+        cluster:       { text: 'Replicas 1  Cluster cluster1', fill: '#a8a8a8', fontSize: 10, x: 14, y: 86, fontFamily: 'monospace' },
+        patternBadges: { text: '', fill: '#9cc8ff', fontSize: 10, fontWeight: 700, x: 14, y: 110, fontFamily: 'monospace' }
       },
       ports: {
         groups: {
-          in: {
-            position: 'left',
-            attrs: { 
-              circle: { 
-                r: 7, 
-                magnet: true, 
-                stroke: '#007acc', 
-                strokeWidth: 2.5, 
-                fill: '#1a1a1a' 
-              } 
-            }
-          },
-          out: {
-            position: 'right',
-            attrs: { 
-              circle: { 
-                r: 7, 
-                magnet: true, 
-                stroke: '#007acc', 
-                strokeWidth: 2.5, 
-                fill: '#1a1a1a' 
-              } 
-            }
-          }
+          in:  { position: 'left',  attrs: { circle: { r: 7, magnet: true, stroke: '#007acc', strokeWidth: 2.5, fill: '#1a1a1a' } } },
+          out: { position: 'right', attrs: { circle: { r: 7, magnet: true, stroke: '#007acc', strokeWidth: 2.5, fill: '#1a1a1a' } } }
         },
-        items: [
-          { id: 'port_in', group: 'in' },
-          { id: 'port_out', group: 'out' }
-        ]
+        items: [{ id: 'port_in', group: 'in' }, { id: 'port_out', group: 'out' }]
       }
     });
-  }
-
-  private applyPatternToNode(node: Node, patternType: string) {
-    const data = { ...(node.getData() || {}) };
-    const resilience = { ...(data.resilience_patterns || {}) };
-
-    if (patternType === 'fallback') {
-      resilience.fallback = {
-        enabled: true,
-        fallback_response: 'fallback-response',
-        trigger_on_error_rate: 0.5
-      };
-    } else if (patternType === 'bulkhead') {
-      resilience.bulkhead = {
-        enabled: true,
-        max_concurrent_calls: 10,
-        max_wait_duration_ms: 100
-      };
-    } else if (patternType === 'loadshedding') {
-      resilience.load_shedding = {
-        enabled: true,
-        max_requests_per_second: 100,
-        strategy: 'drop_newest'
-      };
-    }
-
-    data.resilience_patterns = resilience;
-    node.setData(data);
-
-    const badges: string[] = [];
-    if (resilience.fallback?.enabled) badges.push('FB');
-    if (resilience.bulkhead?.enabled) badges.push('BH');
-    if (resilience.load_shedding?.enabled) badges.push('LS');
-
-    node.attr('patternBadges/text', badges.join('  '));
   }
 }

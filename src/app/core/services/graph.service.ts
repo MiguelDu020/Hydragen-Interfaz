@@ -1,65 +1,87 @@
 import { Injectable } from '@angular/core';
-import { Graph, Node } from '@antv/x6';
+import { Graph, Node, Edge } from '@antv/x6';
 import { Subject } from 'rxjs';
 import { GlobalSettings, HydraGenConfig, ClusterLatency } from '../models/hydragen.model';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class GraphService {
   private graph: Graph | null = null;
   private globalSettings: GlobalSettings = {
     logging: false,
     development: false,
-    base_image: 'ubuntu:20.04'
+    base_image: ''
   };
   private clusterLatencies: ClusterLatency[] = [];
 
   private nodeSelectedSource = new Subject<Node | null>();
   nodeSelected$ = this.nodeSelectedSource.asObservable();
 
+  private edgeSelectedSource = new Subject<Edge | null>();
+  edgeSelected$ = this.edgeSelectedSource.asObservable();
+
   setGraph(graph: Graph) {
     this.graph = graph;
 
     this.graph.on('node:click', ({ node }) => {
+      this.edgeSelectedSource.next(null);
       this.nodeSelectedSource.next(node);
+    });
+
+    this.graph.on('edge:click', ({ edge }) => {
+      this.nodeSelectedSource.next(null);
+      this.edgeSelectedSource.next(edge);
     });
 
     this.graph.on('blank:click', () => {
       this.nodeSelectedSource.next(null);
+      this.edgeSelectedSource.next(null);
     });
   }
 
-  getGraph(): Graph | null {
-    return this.graph;
-  }
+  getGraph(): Graph | null { return this.graph; }
 
   addNode(metadata: Node.Metadata): Node | undefined {
     return this.graph?.addNode(metadata);
   }
 
-  clear() {
-    this.graph?.clearCells();
-  }
+  clear() { this.graph?.clearCells(); }
 
-  getSettings(): GlobalSettings {
-    return this.globalSettings;
-  }
+  getSettings(): GlobalSettings { return { ...this.globalSettings }; }
 
   setSettings(settings: GlobalSettings) {
-    this.globalSettings = {
-      logging: settings.logging ?? this.globalSettings.logging,
-      development: settings.development ?? this.globalSettings.development,
-      base_image: settings.base_image || this.globalSettings.base_image
-    };
+    this.globalSettings = { ...settings };
   }
 
-  getClusterLatencies(): ClusterLatency[] {
-    return this.clusterLatencies;
-  }
+  getClusterLatencies(): ClusterLatency[] { return this.clusterLatencies; }
 
   setClusterLatencies(latencies: ClusterLatency[]) {
     this.clusterLatencies = latencies || [];
+  }
+
+  /** Recalculates node visual attrs from its current data */
+  refreshNodeVisuals(node: Node) {
+    const data = (node.getData() || {}) as any;
+    const endpoints: any[] = data.endpoints || [];
+
+    const badges: string[] = [];
+    if (endpoints.some((ep: any) => ep.resilience_patterns?.timeout)) badges.push('TO');
+    if (endpoints.some((ep: any) => ep.resilience_patterns?.retry))   badges.push('RT');
+    if (endpoints.some((ep: any) => ep.resilience_patterns?.fallback)) badges.push('FB');
+
+    const name     = data.name     || 'Service';
+    const protocol = (data.protocol || 'http').toUpperCase();
+    const cpuReq   = data.resources?.requests?.cpu    || '500m';
+    const cpuLim   = data.resources?.limits?.cpu      || '1000m';
+    const memReq   = data.resources?.requests?.memory || '256M';
+    const memLim   = data.resources?.limits?.memory   || '1024M';
+    const replicas  = data.clusters?.[0]?.replicas ?? 1;
+    const cluster   = data.clusters?.[0]?.cluster  || 'cluster1';
+
+    try { node.attr('title/text', name); } catch (_) {}
+    try { node.attr('badge/text', protocol); } catch (_) {}
+    try { node.attr('patternBadges/text', badges.join('  ')); } catch (_) {}
+    try { node.attr('resources/text', `CPU ${cpuReq}/${cpuLim}  MEM ${memReq}/${memLim}`); } catch (_) {}
+    try { node.attr('cluster/text', `Replicas ${replicas}  Cluster ${cluster}`); } catch (_) {}
   }
 
   importConfig(config: HydraGenConfig) {
@@ -67,32 +89,23 @@ export class GraphService {
 
     this.setSettings(config.settings || this.globalSettings);
     this.setClusterLatencies(config.cluster_latencies || []);
-
     this.graph.clearCells();
 
-    const gridX = 100;
-    const gridY = 100;
-    const spacingX = 280;
-    const spacingY = 190;
-
     const nodeMap = new Map<string, Node>();
+    const spacingX = 300, spacingY = 200, baseX = 100, baseY = 100;
 
     config.services.forEach((service, index) => {
-      const x = gridX + (index % 3) * spacingX;
-      const y = gridY + Math.floor(index / 3) * spacingY;
+      const x = baseX + (index % 3) * spacingX;
+      const y = baseY + Math.floor(index / 3) * spacingY;
+      const endpoints = service.endpoints || [];
 
-      const resilience = service.resilience_patterns || {};
       const badges: string[] = [];
-      if ((resilience as any).fallback?.enabled) badges.push('FB');
-      if ((resilience as any).bulkhead?.enabled) badges.push('BH');
-      if ((resilience as any).load_shedding?.enabled) badges.push('LS');
+      if (endpoints.some((ep: any) => ep.resilience_patterns?.timeout))  badges.push('TO');
+      if (endpoints.some((ep: any) => ep.resilience_patterns?.retry))    badges.push('RT');
+      if (endpoints.some((ep: any) => ep.resilience_patterns?.fallback)) badges.push('FB');
 
-      const node = this.graph?.addNode({
-        x,
-        y,
-        width: 268,
-        height: 148,
-        shape: 'rect',
+      const node = this.graph!.addNode({
+        x, y, width: 260, height: 130, shape: 'rect',
         data: {
           rawType: 'service',
           name: service.name,
@@ -103,9 +116,8 @@ export class GraphService {
           readiness_probe: service.readiness_probe,
           logging: service.logging ?? false,
           development: service.development ?? false,
-          base_image: service.base_image || 'ubuntu:20.04',
-          endpoints: service.endpoints || [],
-          resilience_patterns: resilience
+          base_image: service.base_image || '',
+          endpoints
         },
         markup: [
           { tagName: 'rect', selector: 'bg' },
@@ -119,52 +131,55 @@ export class GraphService {
           { tagName: 'text', selector: 'patternBadges' }
         ],
         attrs: {
-          bg: { refWidth: '100%', refHeight: '100%', fill: '#1a1a1a', stroke: '#333', strokeWidth: 1.2, rx: 10, ry: 10 },
-          divider: { x1: 0, y1: 42, x2: 268, y2: 42, stroke: '#2a2a2a', strokeWidth: 1 },
-          icon: { text: '◉', fill: '#7f8c9d', fontSize: 14, x: 14, y: 26 },
-          title: { text: service.name || 'Service', fill: '#e0e0e0', fontSize: 13, fontWeight: 600, x: 34, y: 26 },
-          badgeBg: { fill: '#1f4460', rx: 5, ry: 5, width: 42, height: 18, refX: '100%', refX2: -56, y: 11 },
-          badge: { text: (service.protocol || 'http').toUpperCase(), fill: '#d9efff', fontSize: 9, refX: '100%', refX2: -52, y: 23 },
-          resources: { text: `CPU ${service.resources?.requests?.cpu || '500m'}/${service.resources?.limits?.cpu || '1000m'}  MEM ${service.resources?.requests?.memory || '512Mi'}/${service.resources?.limits?.memory || '1024Mi'}`, fill: '#a8a8a8', fontSize: 10, x: 14, y: 70, fontFamily: 'monospace' },
-          cluster: { text: `Replicas ${service.clusters?.[0]?.replicas ?? 1}  Cluster ${service.clusters?.[0]?.cluster || 'cluster1'}`, fill: '#a8a8a8', fontSize: 10, x: 14, y: 90, fontFamily: 'monospace' },
-          patternBadges: { text: badges.join('  '), fill: '#9cc8ff', fontSize: 10, fontWeight: 700, x: 14, y: 112, fontFamily: 'monospace' }
+          bg:           { refWidth: '100%', refHeight: '100%', fill: '#1a1a1a', stroke: '#333', strokeWidth: 1.2, rx: 10, ry: 10 },
+          divider:      { x1: 0, y1: 42, x2: 260, y2: 42, stroke: '#2a2a2a', strokeWidth: 1 },
+          icon:         { text: '◉', fill: '#7f8c9d', fontSize: 14, x: 14, y: 26 },
+          title:        { text: service.name, fill: '#e0e0e0', fontSize: 13, fontWeight: 600, x: 34, y: 26 },
+          badgeBg:      { fill: '#1f4460', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
+          badge:        { text: (service.protocol || 'http').toUpperCase(), fill: '#d9efff', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },
+          resources:    { text: `CPU ${service.resources?.requests?.cpu || '500m'}/${service.resources?.limits?.cpu || '1000m'}  MEM ${service.resources?.requests?.memory || '256M'}/${service.resources?.limits?.memory || '1024M'}`, fill: '#a8a8a8', fontSize: 10, x: 14, y: 68, fontFamily: 'monospace' },
+          cluster:      { text: `Replicas ${service.clusters?.[0]?.replicas ?? 1}  Cluster ${service.clusters?.[0]?.cluster || 'cluster1'}`, fill: '#a8a8a8', fontSize: 10, x: 14, y: 86, fontFamily: 'monospace' },
+          patternBadges:{ text: badges.join('  '), fill: '#9cc8ff', fontSize: 10, fontWeight: 700, x: 14, y: 110, fontFamily: 'monospace' }
         },
         ports: {
           groups: {
-            in: { position: 'left', attrs: { circle: { r: 7, magnet: true, stroke: '#007acc', strokeWidth: 2, fill: '#1a1a1a' } } },
+            in:  { position: 'left',  attrs: { circle: { r: 7, magnet: true, stroke: '#007acc', strokeWidth: 2, fill: '#1a1a1a' } } },
             out: { position: 'right', attrs: { circle: { r: 7, magnet: true, stroke: '#007acc', strokeWidth: 2, fill: '#1a1a1a' } } }
           },
-          items: [ { id: 'port_in', group: 'in' }, { id: 'port_out', group: 'out' } ]
+          items: [{ id: 'port_in', group: 'in' }, { id: 'port_out', group: 'out' }]
         }
-      }) as Node;
+      });
 
-      if (node) {
-        nodeMap.set(service.name, node);
-      }
+      if (node) nodeMap.set(service.name, node);
     });
 
+    // Create edges from called_services
     config.services.forEach(service => {
-      const source = nodeMap.get(service.name);
-      if (!source) return;
+      const srcNode = nodeMap.get(service.name);
+      if (!srcNode) return;
 
-      const endpoint = service.endpoints?.[0];
-      endpoint?.network_complexity?.called_services?.forEach(called => {
-        const target = nodeMap.get(called.service);
-        if (target && this.graph) {
-          this.graph.addEdge({
-            source: { cell: source.id, port: 'port_out' },
-            target: { cell: target.id, port: 'port_in' },
-            attrs: {
-              line: { stroke: '#a0a0a0', strokeWidth: 2, targetMarker: { name: 'block', size: 12 } }
-            },
-            data: {
-              port: called.port,
-              protocol: called.protocol,
-              traffic_forward_ratio: called.traffic_forward_ratio,
-              request_payload_size: called.request_payload_size
-            }
-          });
-        }
+      (service.endpoints || []).forEach(endpoint => {
+        (endpoint.network_complexity?.called_services || []).forEach(called => {
+          const tgtNode = nodeMap.get(called.service);
+          if (tgtNode && this.graph) {
+            this.graph.addEdge({
+              source: { cell: srcNode.id, port: 'port_out' },
+              target: { cell: tgtNode.id, port: 'port_in' },
+              attrs: { line: { stroke: '#a0a0a0', strokeWidth: 2, targetMarker: { name: 'block', size: 12 } } },
+              data: {
+                sourceEndpoint: endpoint.name,
+                targetEndpoint: called.endpoint,
+                port: called.port,
+                protocol: called.protocol,
+                traffic_forward_ratio: called.traffic_forward_ratio,
+                request_payload_size: called.request_payload_size,
+                active_timeout:  called.active_timeout  ?? false,
+                active_retry:    called.active_retry    ?? false,
+                active_fallback: called.active_fallback ?? false
+              }
+            });
+          }
+        });
       });
     });
   }

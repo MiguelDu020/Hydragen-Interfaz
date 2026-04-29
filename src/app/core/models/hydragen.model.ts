@@ -2,7 +2,7 @@ import { ResiliencePatterns } from './resilience.model';
 
 export interface HydraGenConfig {
   settings: GlobalSettings;
-  cluster_latencies: ClusterLatency[];
+  cluster_latencies?: ClusterLatency[];
   services: Service[];
 }
 
@@ -29,7 +29,7 @@ export interface Service {
   development?: boolean;
   base_image?: string;
   endpoints: Endpoint[];
-  resilience_patterns?: ResiliencePatterns;
+  // resilience_patterns is at ENDPOINT level, NOT service level
 }
 
 export interface ClusterConfig {
@@ -60,6 +60,7 @@ export interface Endpoint {
   execution_mode: 'sequential' | 'parallel';
   cpu_complexity: CpuComplexity;
   network_complexity: NetworkComplexity;
+  resilience_patterns?: ResiliencePatterns; // ← at endpoint level
 }
 
 export interface CpuComplexity {
@@ -76,8 +77,11 @@ export interface NetworkComplexity {
 export interface CalledService {
   service: string;
   endpoint: string;
-  port: string | number;
+  port: number;
   protocol: 'http' | 'grpc';
   traffic_forward_ratio: number;
   request_payload_size: number;
+  active_timeout?: boolean;
+  active_retry?: boolean;
+  active_fallback?: boolean;
 }

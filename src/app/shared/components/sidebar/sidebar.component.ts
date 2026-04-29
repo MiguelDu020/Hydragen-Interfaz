@@ -16,36 +16,39 @@ import { CommonModule } from '@angular/common';
       </div>
 
       <div class="section-label mt">Resilience Patterns</div>
+      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'timeout')">
+        <span class="item-icon to">TO</span>
+        <div class="item-info">
+          <span>Timeout</span>
+          <small>Límite de tiempo de respuesta</small>
+        </div>
+      </div>
+      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'retry')">
+        <span class="item-icon rt">RT</span>
+        <div class="item-info">
+          <span>Retry</span>
+          <small>Reintento con backoff exponencial</small>
+        </div>
+      </div>
       <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'fallback')">
-        <span class="item-icon">FB</span>
+        <span class="item-icon fb">FB</span>
         <div class="item-info">
           <span>Fallback</span>
-          <small>Respuesta alternativa</small>
-        </div>
-      </div>
-      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'bulkhead')">
-        <span class="item-icon">BH</span>
-        <div class="item-info">
-          <span>Bulkhead</span>
-          <small>Aislar fallas por recurso</small>
-        </div>
-      </div>
-      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'loadshedding')">
-        <span class="item-icon">LS</span>
-        <div class="item-info">
-          <span>Load Shedding</span>
-          <small>Descartar carga excesiva</small>
+          <small>Respuesta alternativa ante fallo</small>
         </div>
       </div>
 
-      <p class="hint">Arrastra un patrón sobre un servicio para activarlo.</p>
+      <p class="hint">
+        💡 Los patrones se configuran en la pestaña <strong>Endpoints</strong>
+        del panel de propiedades del servicio.
+      </p>
     </div>
   `,
   styles: [`
     @use '../../../../styles/variables' as *;
 
     .sidebar-container {
-      width: 240px;
+      width: 220px;
       height: 100%;
       background-color: $bg-card;
       border-right: 1px solid $border-color;
@@ -64,7 +67,6 @@ import { CommonModule } from '@angular/common';
       color: $text-secondary;
       margin-bottom: 4px;
       padding: 0 4px;
-
       &.mt { margin-top: 14px; }
     }
 
@@ -73,10 +75,7 @@ import { CommonModule } from '@angular/common';
       grid-template-columns: repeat(2, 1fr);
       gap: 10px;
       margin-bottom: 8px;
-    }
-
-    .components-grid.single-item {
-      grid-template-columns: 1fr;
+      &.single-item { grid-template-columns: 1fr; }
     }
 
     .cube-item {
@@ -91,29 +90,10 @@ import { CommonModule } from '@angular/common';
       justify-content: center;
       aspect-ratio: 1;
       gap: 8px;
-
-      &:hover {
-        border-color: $accent-blue;
-        background-color: rgba($accent-blue, 0.08);
-        transform: translateY(-1px);
-      }
-
-      &:active {
-        cursor: grabbing;
-        transform: translateY(0);
-      }
-
-      .cube-icon {
-        font-size: 22px;
-        color: #c7d2e0;
-      }
-
-      .cube-label {
-        font-size: 11px;
-        font-weight: 500;
-        color: $text-primary;
-        text-align: center;
-      }
+      &:hover { border-color: $accent-blue; background-color: rgba(0, 123, 255, 0.08); transform: translateY(-1px); }
+      &:active { cursor: grabbing; transform: translateY(0); }
+      .cube-icon { font-size: 22px; color: #c7d2e0; }
+      .cube-label { font-size: 11px; font-weight: 500; color: $text-primary; text-align: center; }
     }
 
     .item {
@@ -125,45 +105,43 @@ import { CommonModule } from '@angular/common';
       transition: all 0.15s ease;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       font-size: 13px;
-
-      &:hover {
-        border-color: $accent-blue;
-        background-color: rgba($accent-blue, 0.06);
-      }
-
+      &:hover { border-color: $accent-blue; background-color: rgba(0, 123, 255, 0.06); }
       &:active { cursor: grabbing; }
+    }
 
-      .item-icon {
-        min-width: 28px;
-        height: 22px;
-        border-radius: 4px;
-        border: 1px solid #3c4e67;
-        background: #1d2a3a;
-        color: #9cc8ff;
-        font-size: 11px;
-        font-weight: 700;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
+    .item-icon {
+      min-width: 28px;
+      height: 22px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      &.to { border: 1px solid #3c5e6e; background: #1a3340; color: #7dd3fc; }
+      &.rt { border: 1px solid #4e5e3c; background: #2a3318; color: #bef264; }
+      &.fb { border: 1px solid #6e5a3c; background: #3a2e18; color: #fcd34d; }
+    }
 
-      .item-info {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-
-        small { font-size: 10px; color: $text-secondary; }
-      }
+    .item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      small { font-size: 10px; color: $text-secondary; }
     }
 
     .hint {
       font-size: 10px;
       color: $text-secondary;
-      margin-top: 4px;
-      line-height: 1.4;
-      padding: 0 4px;
+      margin-top: 8px;
+      line-height: 1.5;
+      padding: 8px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+      border: 1px solid $border-color;
+      strong { color: $accent-blue; }
     }
   `]
 })

@@ -1,25 +1,22 @@
 // core/models/resilience.model.ts
 
 export interface ResiliencePatterns {
-  bulkhead?: BulkheadConfig;
+  timeout?: TimeoutConfig;
+  retry?: RetryConfig;
   fallback?: FallbackConfig;
-  load_shedding?: LoadSheddingConfig;
 }
 
-export interface BulkheadConfig {
-  enabled: boolean;
-  max_concurrent_calls: number;
-  max_wait_duration_ms: number;
+export interface TimeoutConfig {
+  duration_ms: number; // milisegundos
+}
+
+export interface RetryConfig {
+  max_attempts: number;
+  backoff_ms: number;
+  backoff_multiplier: number;
 }
 
 export interface FallbackConfig {
-  enabled: boolean;
   fallback_response: string;
-  trigger_on_error_rate: number;
-}
-
-export interface LoadSheddingConfig {
-  enabled: boolean;
-  max_requests_per_second: number;
-  strategy: 'drop_newest' | 'drop_oldest' | 'random';
+  trigger_on_error_rate: number; // 0.0 a 1.0
 }
