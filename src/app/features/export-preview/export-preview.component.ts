@@ -10,7 +10,7 @@ import { ExporterService } from '../../core/services/exporter.service';
     <div class="preview-overlay" (click)="close()">
       <div class="preview-container" (click)="$event.stopPropagation()">
         <div class="preview-header">
-          <h3>📄 Export Preview</h3>
+          <h3>Export Preview</h3>
           <div class="format-tabs">
             <button [class.active]="format === 'json'" (click)="setFormat('json')">JSON</button>
             <button [class.active]="format === 'yaml'" (click)="setFormat('yaml')">YAML</button>

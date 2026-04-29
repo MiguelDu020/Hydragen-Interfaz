@@ -109,3 +109,5 @@ Una interfaz usable para:
 - Reducir barrera técnica en generación de benchmarks.
 - Mejorar trazabilidad entre diseño de arquitectura y configuración final.
 - Servir como apoyo académico para la memoria de grado y demostración del proceso de desarrollo.
+
+

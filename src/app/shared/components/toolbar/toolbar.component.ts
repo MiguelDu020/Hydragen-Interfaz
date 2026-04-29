@@ -13,6 +13,18 @@ import { HydraGenConfig } from '../../../core/models/hydragen.model';
     <div class="toolbar">
       <div class="left-section">
         <h3>HydraGen Console</h3>
+        <div class="history-btns">
+          <button class="icon-btn" (click)="undo()" title="Deshacer (Ctrl+Z)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7v6h6"/><path d="M3 13C5 7 10 3 16 3a9 9 0 0 1 6 15.5"/>
+            </svg>
+          </button>
+          <button class="icon-btn" (click)="redo()" title="Rehacer (Ctrl+Y)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 7v6h-6"/><path d="M21 13C19 7 14 3 8 3a9 9 0 0 0-6 15.5"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="right-section">
@@ -24,15 +36,44 @@ import { HydraGenConfig } from '../../../core/models/hydragen.model';
             (change)="importJson($event)">
         </label>
         <button class="btn primary" (click)="exportJson()" title="Exportar JSON HydraGen">Export JSON</button>
-        <button class="btn accent" (click)="preview()" title="Vista previa">Preview</button>
+        <button class="btn accent" (click)="preview()" title="Vista previa">Download</button>
       </div>
     </div>
   `,
   styles: [`
     :host { display: block; background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%); border-bottom: 1px solid #333; }
     .toolbar { display: flex; align-items: center; gap: 20px; padding: 12px 24px; min-height: 56px; }
-    .left-section { flex-shrink: 0; }
+
+    .left-section {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
     .left-section h3 { margin: 0; color: #e0e0e0; font-size: 17px; font-weight: 600; letter-spacing: 0.2px; }
+
+    .history-btns {
+      display: flex;
+      gap: 4px;
+      border-left: 1px solid #2a2a2a;
+      padding-left: 12px;
+    }
+    .icon-btn {
+      background: transparent;
+      border: 1px solid #2a2a2a;
+      color: #a0a0a0;
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      padding: 0;
+      &:hover { border-color: #4a4a4a; color: #e0e0e0; background: #1d1d1d; }
+    }
+
     .right-section { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
     .btn {
       border: 1px solid #3a3a3a; background: #171717; color: #ddd;
@@ -50,6 +91,16 @@ export class ToolbarComponent {
     private exporterService: ExporterService,
     private graphService: GraphService
   ) {}
+
+  undo() {
+    const g = this.graphService.getGraph();
+    if (g) (g as any).undo?.();
+  }
+
+  redo() {
+    const g = this.graphService.getGraph();
+    if (g) (g as any).redo?.();
+  }
 
   clearGraph() {
     const g = this.graphService.getGraph();
@@ -79,7 +130,7 @@ export class ToolbarComponent {
       }
     };
     reader.readAsText(file);
-    input.value = ''; // reset so same file can be re-imported
+    input.value = '';
   }
 
   loadExample() {

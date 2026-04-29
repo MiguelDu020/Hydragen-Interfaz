@@ -8,7 +8,7 @@ export class PatternService {
   constructor(private graphService: GraphService) {}
 
   private makeNodeMeta(name: string, x: number, y: number, type = 'microservice') {
-    const icon = type === 'gateway' ? '🚪' : type === 'backend' ? '🗄' : '📦';
+    const icon = type === 'gateway' ? '[GW]' : type === 'backend' ? '[DB]' : '[SVC]';
     return {
       x, y,
       width: 200,
@@ -23,7 +23,7 @@ export class PatternService {
         endpoints: []
       },
       markup: [
-        { tagName: 'rect', selector: 'bg' },
+        { tagName: 'rect', selector: 'body' },
         { tagName: 'line', selector: 'divider' },
         { tagName: 'text', selector: 'icon' },
         { tagName: 'text', selector: 'title' },
@@ -33,14 +33,14 @@ export class PatternService {
         { tagName: 'text', selector: 'line2' },
       ],
       attrs: {
-        bg: { refWidth: '100%', refHeight: '100%', fill: '#141414', stroke: '#2a2a2a', strokeWidth: 1, rx: 8, ry: 8 },
+        body: { refWidth: '100%', refHeight: '100%', fill: '#141414', stroke: '#2a2a2a', strokeWidth: 1, rx: 8, ry: 8 },
         divider: { x1: 0, y1: 36, x2: 200, y2: 36, stroke: '#2a2a2a', strokeWidth: 1 },
-        icon: { text: icon, fill: '#fff', fontSize: 13, x: 10, y: 22 },
-        title: { text: name.substring(0, 16), fill: '#fff', fontSize: 13, fontWeight: 500, x: 28, y: 22 },
+        icon: { text: icon, fill: '#fff', fontSize: 10, x: 10, y: 22, fontFamily: 'monospace' },
+        title: { text: name.substring(0, 16), fill: '#fff', fontSize: 13, fontWeight: 500, x: 50, y: 22 },
         badgeBg: { fill: '#007bff', rx: 4, ry: 4, width: 34, height: 16, refX: '100%', refX2: -44, y: 10 },
         badge: { text: 'HTTP', fill: '#fff', fontSize: 9, refX: '100%', refX2: -40, y: 22 },
-        line1: { text: '⚡ CPU: 500m/1000m | 💾 256M/1G', fill: '#a0a0a0', fontSize: 10, x: 10, y: 56 },
-        line2: { text: '🔁 Replicas: 1 | 📦 cluster1', fill: '#a0a0a0', fontSize: 10, x: 10, y: 74 }
+        line1: { text: 'CPU: 500m/1000m  MEM: 256M/1G', fill: '#a0a0a0', fontSize: 10, x: 10, y: 56, fontFamily: 'monospace' },
+        line2: { text: 'Replicas: 1  Cluster: cluster1', fill: '#a0a0a0', fontSize: 10, x: 10, y: 74, fontFamily: 'monospace' }
       },
       ports: {
         groups: {

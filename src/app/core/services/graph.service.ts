@@ -3,6 +3,11 @@ import { Graph, Node, Edge } from '@antv/x6';
 import { Subject } from 'rxjs';
 import { GlobalSettings, HydraGenConfig, ClusterLatency } from '../models/hydragen.model';
 
+/** Trunca texto — garantiza que no desborda la caja SVG */
+function trunc(text: string, maxChars: number): string {
+  return text.length > maxChars ? text.substring(0, maxChars - 1) + '\u2026' : text;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GraphService {
   private graph: Graph | null = null;
@@ -18,6 +23,11 @@ export class GraphService {
 
   private edgeSelectedSource = new Subject<Edge | null>();
   edgeSelected$ = this.edgeSelectedSource.asObservable();
+
+  // ── Apply confirmation event ──────────────────────────────────────────────
+  private applyConfirmedSource = new Subject<void>();
+  applyConfirmed$ = this.applyConfirmedSource.asObservable();
+  notifyApply() { this.applyConfirmedSource.next(); }
 
   setGraph(graph: Graph) {
     this.graph = graph;
@@ -77,11 +87,11 @@ export class GraphService {
     const replicas  = data.clusters?.[0]?.replicas ?? 1;
     const cluster   = data.clusters?.[0]?.cluster  || 'cluster1';
 
-    try { node.attr('title/text', name); } catch (_) {}
-    try { node.attr('badge/text', protocol); } catch (_) {}
+    try { node.attr('title/text',        trunc(name, 20)); } catch (_) {}
+    try { node.attr('badge/text',         protocol); } catch (_) {}
     try { node.attr('patternBadges/text', badges.join('  ')); } catch (_) {}
-    try { node.attr('resources/text', `CPU ${cpuReq}/${cpuLim}  MEM ${memReq}/${memLim}`); } catch (_) {}
-    try { node.attr('cluster/text', `Replicas ${replicas}  Cluster ${cluster}`); } catch (_) {}
+    try { node.attr('resources/text', trunc(`CPU ${cpuReq}/${cpuLim}  MEM ${memReq}/${memLim}`, 36)); } catch (_) {}
+    try { node.attr('cluster/text',   trunc(`Replicas ${replicas}  Cluster ${cluster}`, 34)); } catch (_) {}
   }
 
   importConfig(config: HydraGenConfig) {
@@ -105,7 +115,7 @@ export class GraphService {
       if (endpoints.some((ep: any) => ep.resilience_patterns?.fallback)) badges.push('FB');
 
       const node = this.graph!.addNode({
-        x, y, width: 260, height: 130, shape: 'rect',
+        x, y, width: 260, height: 130, shape: 'service-node',
         data: {
           rawType: 'service',
           name: service.name,
@@ -119,26 +129,14 @@ export class GraphService {
           base_image: service.base_image || '',
           endpoints
         },
-        markup: [
-          { tagName: 'rect', selector: 'bg' },
-          { tagName: 'line', selector: 'divider' },
-          { tagName: 'text', selector: 'icon' },
-          { tagName: 'text', selector: 'title' },
-          { tagName: 'rect', selector: 'badgeBg' },
-          { tagName: 'text', selector: 'badge' },
-          { tagName: 'text', selector: 'resources' },
-          { tagName: 'text', selector: 'cluster' },
-          { tagName: 'text', selector: 'patternBadges' }
-        ],
         attrs: {
-          bg:           { refWidth: '100%', refHeight: '100%', fill: '#1a1a1a', stroke: '#333', strokeWidth: 1.2, rx: 10, ry: 10 },
           divider:      { x1: 0, y1: 42, x2: 260, y2: 42, stroke: '#2a2a2a', strokeWidth: 1 },
-          icon:         { text: '◉', fill: '#7f8c9d', fontSize: 14, x: 14, y: 26 },
-          title:        { text: service.name, fill: '#e0e0e0', fontSize: 13, fontWeight: 600, x: 34, y: 26 },
+          icon:         { text: '\u25c9', fill: '#7f8c9d', fontSize: 14, x: 14, y: 26 },
+          title:        { text: trunc(service.name, 20), fill: '#e0e0e0', fontSize: 12, fontWeight: 600, x: 34, y: 26 },
           badgeBg:      { fill: '#1f4460', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
           badge:        { text: (service.protocol || 'http').toUpperCase(), fill: '#d9efff', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },
-          resources:    { text: `CPU ${service.resources?.requests?.cpu || '500m'}/${service.resources?.limits?.cpu || '1000m'}  MEM ${service.resources?.requests?.memory || '256M'}/${service.resources?.limits?.memory || '1024M'}`, fill: '#a8a8a8', fontSize: 10, x: 14, y: 68, fontFamily: 'monospace' },
-          cluster:      { text: `Replicas ${service.clusters?.[0]?.replicas ?? 1}  Cluster ${service.clusters?.[0]?.cluster || 'cluster1'}`, fill: '#a8a8a8', fontSize: 10, x: 14, y: 86, fontFamily: 'monospace' },
+          resources:    { text: trunc(`CPU ${service.resources?.requests?.cpu || '500m'}/${service.resources?.limits?.cpu || '1000m'}  MEM ${service.resources?.requests?.memory || '256M'}/${service.resources?.limits?.memory || '1024M'}`, 36), fill: '#a8a8a8', fontSize: 10, x: 14, y: 68, fontFamily: 'monospace' },
+          cluster:      { text: trunc(`Replicas ${service.clusters?.[0]?.replicas ?? 1}  Cluster ${service.clusters?.[0]?.cluster || 'cluster1'}`, 34), fill: '#a8a8a8', fontSize: 10, x: 14, y: 86, fontFamily: 'monospace' },
           patternBadges:{ text: badges.join('  '), fill: '#9cc8ff', fontSize: 10, fontWeight: 700, x: 14, y: 110, fontFamily: 'monospace' }
         },
         ports: {

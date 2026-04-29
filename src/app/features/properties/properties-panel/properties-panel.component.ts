@@ -428,6 +428,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     if (!this.selectedNode) return;
     this.selectedNode.setData(this.pendingData);
     this.graphService.refreshNodeVisuals(this.selectedNode);
+    this.graphService.notifyApply();
     this.cdr.detectChanges();
   }
 
