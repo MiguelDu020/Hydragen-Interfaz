@@ -11,7 +11,7 @@ import { GraphService } from '../../../../core/services/graph.service';
   template: `
     <div class="endpoints-tab">
 
-      <div class="endpoint-item" *ngFor="let ep of endpoints; let ei = index">
+      <div class="endpoint-item" *ngFor="let ep of endpoints; let ei = index; trackBy: trackByEp">
         <!-- Accordion Header -->
         <div class="ep-header" (click)="toggleExpand(ei)">
           <span class="ep-arrow">{{ expandedIdx === ei ? '▼' : '▶' }}</span>
@@ -78,11 +78,11 @@ import { GraphService } from '../../../../core/services/graph.service';
             Conexiones salientes
             <span class="subtitle-note">— definidas en el canvas</span>
           </div>
-          <ng-container *ngIf="getEdgesForEndpoint(ep.name) as edgeRows">
+          <ng-container *ngIf="cachedEdges[ep.name] as edgeRows">
             <div class="empty-edges" *ngIf="edgeRows.length === 0">
               Sin conexiones salientes asignadas a este endpoint.
             </div>
-            <div class="edge-row" *ngFor="let row of edgeRows">
+            <div class="edge-row" *ngFor="let row of edgeRows; trackBy: trackByEdge">
               <div class="edge-target">
                 <span class="tag">→</span>
                 <strong>{{ row.targetName }}</strong>
@@ -299,6 +299,7 @@ export class EndpointsTabComponent implements OnChanges {
   @Output() dataChange = new EventEmitter<any>();
 
   endpoints: any[] = [];
+  cachedEdges: { [key: string]: any[] } = {};
   expandedIdx: number | null = 0;
 
   constructor(private graphService: GraphService) {}
@@ -306,9 +307,13 @@ export class EndpointsTabComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
       this.endpoints = JSON.parse(JSON.stringify(this.nodeData.endpoints || []));
+      this.refreshAllEdges();
       if (this.expandedIdx !== null && this.expandedIdx >= this.endpoints.length) {
         this.expandedIdx = this.endpoints.length > 0 ? 0 : null;
       }
+    }
+    if (changes['nodeId'] && this.nodeId) {
+      this.refreshAllEdges();
     }
   }
 
@@ -325,6 +330,7 @@ export class EndpointsTabComponent implements OnChanges {
       network_complexity: { forward_requests: 'synchronous', response_payload_size: 0, called_services: [] }
     }];
     this.expandedIdx = this.endpoints.length - 1;
+    this.refreshAllEdges();
     this.emit();
   }
 
@@ -335,6 +341,7 @@ export class EndpointsTabComponent implements OnChanges {
     if (this.expandedIdx !== null && this.expandedIdx >= this.endpoints.length) {
       this.expandedIdx = this.endpoints.length - 1;
     }
+    this.refreshAllEdges();
     this.emit();
   }
 
@@ -352,7 +359,26 @@ export class EndpointsTabComponent implements OnChanges {
     this.emit();
   }
 
-  getEdgesForEndpoint(endpointName: string): Array<{ edge: Edge; edgeData: any; targetName: string; targetEndpoint: string }> {
+
+  updateEdge(edge: Edge, field: string, value: any) {
+    const current = edge.getData() || {};
+    edge.setData({ ...current, [field]: value });
+    this.refreshAllEdges();
+    this.emit();
+  }
+
+  emit() {
+    this.dataChange.emit({ ...this.nodeData, endpoints: JSON.parse(JSON.stringify(this.endpoints)) });
+  }
+
+  refreshAllEdges() {
+    this.cachedEdges = {};
+    this.endpoints.forEach(ep => {
+      this.cachedEdges[ep.name] = this.getEdgesForEndpointInternal(ep.name);
+    });
+  }
+
+  private getEdgesForEndpointInternal(endpointName: string): Array<{ edge: Edge; edgeData: any; targetName: string; targetEndpoint: string }> {
     const graph = this.graphService.getGraph();
     if (!graph || !this.nodeId) return [];
     return graph.getEdges()
@@ -375,12 +401,6 @@ export class EndpointsTabComponent implements OnChanges {
       });
   }
 
-  updateEdge(edge: Edge, field: string, value: any) {
-    const current = edge.getData() || {};
-    edge.setData({ ...current, [field]: value });
-  }
-
-  emit() {
-    this.dataChange.emit({ ...this.nodeData, endpoints: JSON.parse(JSON.stringify(this.endpoints)) });
-  }
+  trackByEp(index: number, item: any) { return index; }
+  trackByEdge(index: number, item: any) { return item.edge.id; }
 }
