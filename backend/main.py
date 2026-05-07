@@ -28,7 +28,7 @@ app.add_middleware(
 # Structure: job_id -> { status, logs, current_step, step_name, error, created_at }
 jobs: dict = {}
 
-TOTAL_STEPS = 5
+TOTAL_STEPS = 4
 
 
 # ── Request / Response Models ─────────────────────────────────────────────────
@@ -124,8 +124,11 @@ def execute_pipeline(
     ssh_password: str
 ) -> None:
     """Full HydraGen pipeline — runs in a dedicated thread."""
-    generator_path = os.path.join(hydragen_path, "generator")
-    input_dir = os.path.join(generator_path, "input")
+    # Carpeta donde están los scripts (backend/)
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Rutas dentro del repositorio de HydraGen
+    input_dir = os.path.join(hydragen_path, "input")
     input_file = os.path.join(input_dir, "description.json")
 
     try:
@@ -141,9 +144,10 @@ def execute_pipeline(
         _append_log(job_id, f"  Servicios: {len(config.get('services', []))}", 1, "INFO")
 
         # ── STEP 2: generator.sh ─────────────────────────────────────────────
+        generator_script = os.path.join(backend_dir, "generator.sh")
         rc = run_command(
-            "./generator.sh preset input/description.json",
-            generator_path, job_id, 2,
+            f"bash {generator_script} preset input/description.json",
+            hydragen_path, job_id, 2,
             "Generando imagen Docker y manifiestos Kubernetes..."
         )
         if rc != 0:
@@ -152,7 +156,7 @@ def execute_pipeline(
         _append_log(job_id, "✓ Imagen Docker y manifiestos generados", 2, "INFO")
 
         # ── STEP 3: containerd-push-image-to-clusters.sh ─────────────────────
-        push_script = os.path.join(hydragen_path, "community", "containerd-push-image-to-clusters.sh")
+        push_script = os.path.join(backend_dir, "containerd-push-image-to-clusters.sh")
 
         flags: list[str] = []
         if ssh_password:
@@ -166,8 +170,7 @@ def execute_pipeline(
 
         rc = run_command(
             push_cmd,
-            # cwd MUST be generator/ so git rev-parse finds the repo root
-            generator_path, job_id, 3,
+            hydragen_path, job_id, 3,
             "Distribuyendo imagen Docker a los nodos del clúster..."
         )
         if rc != 0:
@@ -175,27 +178,17 @@ def execute_pipeline(
 
         _append_log(job_id, "✓ Imagen distribuida a todos los nodos", 3, "INFO")
 
-        # ── STEP 4: kubectl use-context ──────────────────────────────────────
+        # ── STEP 4: deploy.sh ────────────────────────────────────────────────
+        deploy_script = os.path.join(backend_dir, "deploy.sh")
         rc = run_command(
-            "kubectl config use-context cluster1",
-            generator_path, job_id, 4,
-            "Configurando contexto kubectl..."
-        )
-        if rc != 0:
-            raise RuntimeError(f"kubectl config use-context falló con código {rc}")
-
-        _append_log(job_id, "✓ Contexto kubectl configurado a cluster1", 4, "INFO")
-
-        # ── STEP 5: deploy.sh ────────────────────────────────────────────────
-        rc = run_command(
-            "./deploy.sh input/description.json",
-            generator_path, job_id, 5,
+            f"bash {deploy_script} input/description.json",
+            hydragen_path, job_id, 4,
             "Desplegando microservicios en Kubernetes..."
         )
         if rc != 0:
             raise RuntimeError(f"deploy.sh falló con código de salida {rc}")
 
-        _append_log(job_id, "✓ Benchmark desplegado correctamente en Kubernetes", 5, "INFO")
+        _append_log(job_id, "✓ Benchmark desplegado correctamente en Kubernetes", 4, "INFO")
 
         # ── Done ─────────────────────────────────────────────────────────────
         jobs[job_id]["status"] = "completed"

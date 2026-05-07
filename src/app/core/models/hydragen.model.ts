@@ -84,4 +84,5 @@ export interface CalledService {
   active_timeout?: boolean;
   active_retry?: boolean;
   active_fallback?: boolean;
+  resilience_patterns?: ResiliencePatterns;
 }

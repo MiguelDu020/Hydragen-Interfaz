@@ -104,11 +104,28 @@ export class ExporterService {
             request_payload_size: ed.request_payload_size  ?? 0
           };
 
-          // Add activation flags only when endpoint has patterns configured
-          if (hasAnyPattern) {
-            cs.active_timeout  = rp.timeout  ? (ed.active_timeout  ?? false) : false;
-            cs.active_retry    = rp.retry    ? (ed.active_retry    ?? false) : false;
-            cs.active_fallback = rp.fallback ? (ed.active_fallback ?? false) : false;
+          // Add resilience patterns to the called service if active
+          const csRp: any = {};
+          if (rp.timeout && ed.active_timeout) {
+            csRp.timeout = { duration_ms: rp.timeout.duration_ms ?? 5000 };
+          }
+          if (rp.retry && ed.active_retry) {
+            csRp.exponential_backoff = {
+              initial:      (rp.retry.backoff_ms ?? 100) / 1000,
+              max:          (rp.retry.max_backoff_ms ?? 5000) / 1000,
+              multiplier:   rp.retry.backoff_multiplier ?? 2.0,
+              max_attempts: rp.retry.max_attempts ?? 3
+            };
+          }
+          if (rp.fallback && ed.active_fallback) {
+            csRp.fallback = {
+              fallback_response:     rp.fallback.fallback_response || 'default-response',
+              trigger_on_error_rate: rp.fallback.trigger_on_error_rate ?? 0.5
+            };
+          }
+
+          if (Object.keys(csRp).length > 0) {
+            cs.resilience_patterns = csRp;
           }
 
           return cs;
@@ -132,12 +149,7 @@ export class ExporterService {
           network_complexity: nc
         };
 
-        // Resilience patterns — include only enabled sub-objects
-        const rpOut: any = {};
-        if (rp.timeout)  rpOut.timeout  = { duration_ms: rp.timeout.duration_ms ?? 5000 };
-        if (rp.retry)    rpOut.retry    = { max_attempts: rp.retry.max_attempts ?? 3, backoff_ms: rp.retry.backoff_ms ?? 100, backoff_multiplier: rp.retry.backoff_multiplier ?? 2.0 };
-        if (rp.fallback) rpOut.fallback = { fallback_response: rp.fallback.fallback_response || 'default-response', trigger_on_error_rate: rp.fallback.trigger_on_error_rate ?? 0.5 };
-        if (Object.keys(rpOut).length > 0) endpointOut.resilience_patterns = rpOut;
+        // Resilience patterns are now at the called_services level
 
         return endpointOut;
       });
@@ -145,8 +157,11 @@ export class ExporterService {
       return service;
     });
 
-    const config: any = { settings, services };
-    if (latencies && latencies.length > 0) config.cluster_latencies = latencies;
+    const config: any = {
+      cluster_latencies: (latencies && latencies.length > 0) ? latencies : null,
+      services,
+      settings
+    };
     return config;
   }
 

@@ -14,6 +14,7 @@ export interface RetryConfig {
   max_attempts: number;
   backoff_ms: number;
   backoff_multiplier: number;
+  max_backoff_ms: number;
 }
 
 export interface FallbackConfig {

@@ -164,6 +164,10 @@ import { GraphService } from '../../../../core/services/graph.service';
                   <label>Multiplicador</label>
                   <input type="number" step="0.1" min="1" [(ngModel)]="ep.resilience_patterns!.retry!.backoff_multiplier" (ngModelChange)="emit()" />
                 </div>
+                <div class="field">
+                  <label>Max Backoff (ms)</label>
+                  <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.retry!.max_backoff_ms" (ngModelChange)="emit()" />
+                </div>
               </div>
             </div>
           </div>
@@ -350,7 +354,7 @@ export class EndpointsTabComponent implements OnChanges {
     if (!ep.resilience_patterns) ep.resilience_patterns = {};
     if (checked) {
       if (pattern === 'timeout')  ep.resilience_patterns.timeout  = { duration_ms: 5000 };
-      if (pattern === 'retry')    ep.resilience_patterns.retry    = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0 };
+      if (pattern === 'retry')    ep.resilience_patterns.retry    = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 };
       if (pattern === 'fallback') ep.resilience_patterns.fallback = { fallback_response: 'default-response', trigger_on_error_rate: 0.5 };
     } else {
       delete ep.resilience_patterns[pattern];

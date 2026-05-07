@@ -426,7 +426,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   /* ═══════════ Node ═══════════ */
   applyNodeData() {
     if (!this.selectedNode) return;
-    this.selectedNode.setData(this.pendingData);
+    this.selectedNode.setData(this.pendingData, { overwrite: true });
     this.graphService.refreshNodeVisuals(this.selectedNode);
     this.graphService.notifyApply();
     this.cdr.detectChanges();
@@ -446,7 +446,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
   applyEdgeData() {
     if (!this.selectedEdge) return;
-    this.selectedEdge.setData({ ...this.edgeData });
+    this.selectedEdge.setData({ ...this.edgeData }, { overwrite: true });
   }
 
   sourceEndpointHasTimeout(): boolean {
