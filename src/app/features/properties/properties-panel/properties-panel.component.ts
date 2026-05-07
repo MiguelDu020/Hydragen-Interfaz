@@ -441,6 +441,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     this.sourceEndpoints = (srcData.endpoints || []).map((ep: any) => ep.name).filter(Boolean);
     if (this.sourceEndpoints.length > 0 && !this.edgeData.sourceEndpoint) {
       this.edgeData.sourceEndpoint = this.sourceEndpoints[0];
+      this.applyEdgeData(); // Guardar selección automáticamente
     }
   }
 

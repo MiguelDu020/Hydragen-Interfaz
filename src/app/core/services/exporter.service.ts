@@ -76,26 +76,24 @@ export class ExporterService {
         }];
       }
 
-      service.endpoints = rawEndpoints.map((ep: any, epIdx: number) => {
+      service.endpoints = (nd.endpoints || []).map((ep: any, epIdx: number) => {
         // Filter edges that belong to this endpoint
         const epEdges = outEdges.filter(edge => {
-          const edData = (edge.getData() || {}) as any;
+          const edData = edge.getData() || {};
           const srcEp  = edData.sourceEndpoint;
-          // If no sourceEndpoint set, assign to first endpoint
-          return srcEp === ep.name || (srcEp === undefined && epIdx === 0);
+          return srcEp === ep.name || (!srcEp && epIdx === 0);
         });
 
-        // Determine if endpoint has any pattern configured
+        // Resilience Patterns (from the source endpoint)
         const rp = ep.resilience_patterns || {};
-        const hasAnyPattern = !!(rp.timeout || rp.retry || rp.fallback);
 
         // Build called_services from graph edges
-        const calledServices: CalledService[] = epEdges.map(edge => {
-          const ed      = (edge.getData() || {}) as any;
+        const calledServices: any[] = epEdges.map(edge => {
+          const ed      = edge.getData() || {};
           const tgtNode = graph.getCellById(edge.getTargetCellId() as string);
           const tgtData = (tgtNode?.isNode() ? (tgtNode as any).getData() : {}) || {};
 
-          const cs: CalledService = {
+          const cs: any = {
             service:              tgtData.name   || 'unknown',
             endpoint:             ed.targetEndpoint || (tgtData.endpoints?.[0]?.name) || 'end1',
             port:                 ed.port     ?? 80,
@@ -104,23 +102,29 @@ export class ExporterService {
             request_payload_size: ed.request_payload_size  ?? 0
           };
 
-          // Add resilience patterns to the called service if active
+          // Build Resilience Patterns for this specific call
           const csRp: any = {};
-          if (rp.timeout && ed.active_timeout) {
-            csRp.timeout = { duration_ms: rp.timeout.duration_ms ?? 5000 };
-          }
-          if (rp.retry && ed.active_retry) {
+          
+          // Retry -> exponential_backoff
+          if (rp.retry) {
             csRp.exponential_backoff = {
-              initial:      (rp.retry.backoff_ms ?? 100) / 1000,
-              max:          (rp.retry.max_backoff_ms ?? 5000) / 1000,
-              multiplier:   rp.retry.backoff_multiplier ?? 2.0,
-              max_attempts: rp.retry.max_attempts ?? 3
+              initial:      (rp.retry.backoff_ms || 500) / 1000,
+              max:          (rp.retry.max_backoff_ms || 5000) / 1000,
+              multiplier:   rp.retry.backoff_multiplier || 2.0,
+              max_attempts: rp.retry.max_attempts || 3
             };
           }
-          if (rp.fallback && ed.active_fallback) {
+
+          // Timeout
+          if (rp.timeout) {
+            csRp.timeout = { duration_ms: rp.timeout.duration_ms || 5000 };
+          }
+
+          // Fallback
+          if (rp.fallback) {
             csRp.fallback = {
               fallback_response:     rp.fallback.fallback_response || 'default-response',
-              trigger_on_error_rate: rp.fallback.trigger_on_error_rate ?? 0.5
+              trigger_on_error_rate: rp.fallback.trigger_on_error_rate || 0.5
             };
           }
 
@@ -131,27 +135,20 @@ export class ExporterService {
           return cs;
         });
 
-        // network_complexity
-        const nc: any = {
-          forward_requests:     ep.network_complexity?.forward_requests || (calledServices.length > 0 ? 'synchronous' : 'none'),
-          response_payload_size: ep.network_complexity?.response_payload_size ?? 0,
-          called_services:       calledServices
-        };
-
         // Build endpoint output
-        const endpointOut: any = {
+        return {
           name:           ep.name           || `end${epIdx + 1}`,
           execution_mode: ep.execution_mode || 'sequential',
           cpu_complexity: {
-            execution_time: ep.cpu_complexity?.execution_time ?? 0.001,
-            threads:        ep.cpu_complexity?.threads        ?? 1
+            execution_time: ep.cpu_complexity?.execution_time || 0.001,
+            threads:        ep.cpu_complexity?.threads        || 1
           },
-          network_complexity: nc
+          network_complexity: {
+            forward_requests:      ep.network_complexity?.forward_requests || (calledServices.length > 0 ? 'synchronous' : 'none'),
+            response_payload_size: ep.network_complexity?.response_payload_size || 0,
+            called_services:       calledServices
+          }
         };
-
-        // Resilience patterns are now at the called_services level
-
-        return endpointOut;
       });
 
       return service;

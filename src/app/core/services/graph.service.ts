@@ -107,7 +107,31 @@ export class GraphService {
     config.services.forEach((service, index) => {
       const x = baseX + (index % 3) * spacingX;
       const y = baseY + Math.floor(index / 3) * spacingY;
-      const endpoints = service.endpoints || [];
+      const endpoints = (service.endpoints || []).map(ep => {
+        const epData = { ...ep };
+        // Si el endpoint no tiene patrones pero los llamados sí, los reconstruimos
+        if (!epData.resilience_patterns) {
+          const calledWithPatterns = (ep.network_complexity?.called_services || [])
+            .find(c => c.resilience_patterns);
+            
+          if (calledWithPatterns && calledWithPatterns.resilience_patterns) {
+            const rp = calledWithPatterns.resilience_patterns as any;
+            const newRp: any = {};
+            if (rp.timeout) newRp.timeout = { ...rp.timeout };
+            if (rp.exponential_backoff) {
+              newRp.retry = {
+                max_attempts:       rp.exponential_backoff.max_attempts,
+                backoff_ms:         (rp.exponential_backoff.initial || 0) * 1000,
+                backoff_multiplier: rp.exponential_backoff.multiplier,
+                max_backoff_ms:     (rp.exponential_backoff.max     || 0) * 1000
+              };
+            }
+            if (rp.fallback) newRp.fallback = { ...rp.fallback };
+            epData.resilience_patterns = newRp;
+          }
+        }
+        return epData;
+      });
 
       const badges: string[] = [];
       if (endpoints.some((ep: any) => ep.resilience_patterns?.timeout))  badges.push('TO');
@@ -171,9 +195,9 @@ export class GraphService {
                 protocol: called.protocol,
                 traffic_forward_ratio: called.traffic_forward_ratio,
                 request_payload_size: called.request_payload_size,
-                active_timeout:  called.active_timeout  ?? false,
-                active_retry:    called.active_retry    ?? false,
-                active_fallback: called.active_fallback ?? false
+                active_timeout:  called.active_timeout  || !!called.resilience_patterns?.timeout,
+                active_retry:    called.active_retry    || !!(called.resilience_patterns as any)?.exponential_backoff,
+                active_fallback: called.active_fallback || !!called.resilience_patterns?.fallback
               }
             });
           }
