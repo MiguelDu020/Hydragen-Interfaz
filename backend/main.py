@@ -128,7 +128,7 @@ def execute_pipeline(
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     
     # Rutas dentro del repositorio de HydraGen
-    input_dir = os.path.join(hydragen_path, "input")
+    input_dir = os.path.join(hydragen_path, "generator/input")
     input_file = os.path.join(input_dir, "description.json")
 
     try:
@@ -143,11 +143,13 @@ def execute_pipeline(
         _append_log(job_id, f"✓ JSON guardado en {input_file}", 1, "INFO")
         _append_log(job_id, f"  Servicios: {len(config.get('services', []))}", 1, "INFO")
 
+        run_path = os.path.join(hydragen_path, "generator")
         # ── STEP 2: generator.sh ─────────────────────────────────────────────
         generator_script = os.path.join(backend_dir, "generator.sh")
         rc = run_command(
-            f"bash {generator_script} preset input/description.json",
-            hydragen_path, job_id, 2,
+            #f"bash {generator_script} preset input/description.json",
+            f"echo '{sudo_password}' | sudo -S bash generator.sh preset input/description.json",
+            run_path, job_id, 2,
             "Generando imagen Docker y manifiestos Kubernetes..."
         )
         if rc != 0:
@@ -155,9 +157,21 @@ def execute_pipeline(
 
         _append_log(job_id, "✓ Imagen Docker y manifiestos generados", 2, "INFO")
 
-        # ── STEP 3: containerd-push-image-to-clusters.sh ─────────────────────
-        push_script = os.path.join(backend_dir, "containerd-push-image-to-clusters.sh")
+        ##sudo chown sistemas:sistemas hydragen-emulator.tar
+        # ── STEP 2.5: chage the owner of the image ─────────────────────
+        run_path = os.path.join(hydragen_path, "generator/generated")
+        rc = run_command(
+            f"echo '{sudo_password}' | sudo chown sistemas:sistemas hydragen-emulator.tar",
+            run_path,
+            job_id,
+            3,
+            "Cambiando propietario del TAR...",
+        )
 
+        # ── STEP 3: containerd-push-image-to-clusters.sh ─────────────────────
+        #push_script = os.path.join(backend_dir, "containerd-push-image-to-clusters.sh")
+        push_script = "containerd-push-image-to-clusters.sh"
+        run_path = os.path.join(hydragen_path, "community")
         flags: list[str] = []
         if ssh_password:
             flags.append(f'-p "{ssh_password}"')
@@ -166,11 +180,11 @@ def execute_pipeline(
         else:
             flags.append("-n")  # no sudo password
 
-        push_cmd = f'bash "{push_script}" {" ".join(flags)}'
+        push_cmd = f'bash {push_script} {" ".join(flags)}'
 
         rc = run_command(
             push_cmd,
-            hydragen_path, job_id, 3,
+            run_path, job_id, 3,
             "Distribuyendo imagen Docker a los nodos del clúster..."
         )
         if rc != 0:
@@ -179,10 +193,12 @@ def execute_pipeline(
         _append_log(job_id, "✓ Imagen distribuida a todos los nodos", 3, "INFO")
 
         # ── STEP 4: deploy.sh ────────────────────────────────────────────────
-        deploy_script = os.path.join(backend_dir, "deploy.sh")
+        #deploy_script = os.path.join(backend_dir, "deploy.sh")
+        deploy_script = "deploy.sh"
+        run_path = os.path.join(hydragen_path, "generator")
         rc = run_command(
             f"bash {deploy_script} input/description.json",
-            hydragen_path, job_id, 4,
+            run_path, job_id, 4,
             "Desplegando microservicios en Kubernetes..."
         )
         if rc != 0:
