@@ -12,8 +12,8 @@ function trunc(text: string, maxChars: number): string {
 export class GraphService {
   private graph: Graph | null = null;
   private globalSettings: GlobalSettings = {
-    logging: false,
-    development: false,
+    logging: true,
+    development: true,
     base_image: ''
   };
   private clusterLatencies: ClusterLatency[] = [];
@@ -59,7 +59,11 @@ export class GraphService {
   getSettings(): GlobalSettings { return { ...this.globalSettings }; }
 
   setSettings(settings: GlobalSettings) {
-    this.globalSettings = { ...settings };
+    this.globalSettings = { 
+      ...settings,
+      logging: true,
+      development: true
+    };
   }
 
   getClusterLatencies(): ClusterLatency[] { return this.clusterLatencies; }
@@ -148,8 +152,6 @@ export class GraphService {
           resources: service.resources,
           processes: service.processes,
           readiness_probe: service.readiness_probe,
-          logging: service.logging ?? false,
-          development: service.development ?? false,
           base_image: service.base_image || '',
           endpoints
         },

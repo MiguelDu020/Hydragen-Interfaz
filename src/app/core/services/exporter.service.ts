@@ -58,8 +58,6 @@ export class ExporterService {
         processes:      nd.processes      ?? 0,
         readiness_probe:nd.readiness_probe ?? 2
       };
-      if (nd.logging)     service.logging     = nd.logging;
-      if (nd.development) service.development = nd.development;
       if (nd.base_image)  service.base_image  = nd.base_image;
 
       // --- Outgoing edges for this node ---

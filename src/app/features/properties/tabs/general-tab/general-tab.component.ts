@@ -36,18 +36,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
         <label>Base Image</label>
         <input formControlName="base_image" type="text" placeholder="ubuntu:20.04" />
       </div>
-      <div class="toggles">
-        <label class="toggle-row">
-          <span class="toggle-label">Logging</span>
-          <input type="checkbox" formControlName="logging" />
-          <span class="toggle-track"></span>
-        </label>
-        <label class="toggle-row">
-          <span class="toggle-label">Development Mode</span>
-          <input type="checkbox" formControlName="development" />
-          <span class="toggle-track"></span>
-        </label>
-      </div>
+
     </form>
   `,
   styles: [`
@@ -86,9 +75,7 @@ export class GeneralTabComponent implements OnChanges {
       protocol:       ['http'],
       processes:      [1, [Validators.min(0)]],
       readiness_probe:[2, [Validators.min(1)]],
-      base_image:     [''],
-      logging:        [false],
-      development:    [false]
+      base_image:     ['']
     });
     this.form.valueChanges.subscribe(v => {
       this.dataChange.emit({ ...this.nodeData, ...v });
@@ -102,9 +89,7 @@ export class GeneralTabComponent implements OnChanges {
         protocol:       this.nodeData.protocol       || 'http',
         processes:      this.nodeData.processes      ?? 1,
         readiness_probe:this.nodeData.readiness_probe ?? 2,
-        base_image:     this.nodeData.base_image     || '',
-        logging:        this.nodeData.logging        ?? false,
-        development:    this.nodeData.development    ?? false
+        base_image:     this.nodeData.base_image     || ''
       }, { emitEvent: false });
     }
   }

@@ -310,8 +310,15 @@ export class EndpointsTabComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
-      this.endpoints = JSON.parse(JSON.stringify(this.nodeData.endpoints || []));
-      this.refreshAllEdges();
+      const newEndpoints = this.nodeData.endpoints || [];
+      // Solo actualizar si la longitud cambió o si los datos son realmente distintos.
+      // Esto evita que al escribir (que dispara un emit -> ngOnChanges) se sobrescriba el array local
+      // y se pierda el foco del input.
+      if (this.endpoints.length !== newEndpoints.length || JSON.stringify(this.endpoints) !== JSON.stringify(newEndpoints)) {
+        this.endpoints = JSON.parse(JSON.stringify(newEndpoints));
+        this.refreshAllEdges();
+      }
+
       if (this.expandedIdx !== null && this.expandedIdx >= this.endpoints.length) {
         this.expandedIdx = this.endpoints.length > 0 ? 0 : null;
       }

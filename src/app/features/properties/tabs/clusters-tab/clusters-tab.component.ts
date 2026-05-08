@@ -8,7 +8,7 @@ import { FormsModule } from '@angular/forms';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="clusters-tab">
-      <div class="cluster-item" *ngFor="let cluster of clusters; let i = index">
+      <div class="cluster-item" *ngFor="let cluster of clusters; let i = index; trackBy: trackByIndex">
         <div class="cluster-header">
           <span class="cluster-title">Cluster {{ i + 1 }}</span>
           <button class="btn-remove" (click)="removeCluster(i)" [disabled]="clusters.length <= 1" title="Eliminar">✕</button>
@@ -75,9 +75,12 @@ export class ClustersTabComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
-      this.clusters = JSON.parse(JSON.stringify(
-        this.nodeData.clusters || [{ cluster: 'cluster1', replicas: 1, namespace: 'default', node: '' }]
-      ));
+      const newClusters = this.nodeData.clusters || [{ cluster: 'cluster1', replicas: 1, namespace: 'default', node: '' }];
+      // Solo actualizar si la longitud cambió o si es la primera carga.
+      // Si solo cambiaron valores internos, ngModel se encarga y evitamos reasignar el array para no perder foco.
+      if (this.clusters.length !== newClusters.length || JSON.stringify(this.clusters) !== JSON.stringify(newClusters)) {
+        this.clusters = JSON.parse(JSON.stringify(newClusters));
+      }
     }
   }
 
@@ -94,5 +97,9 @@ export class ClustersTabComponent implements OnChanges {
 
   emit() {
     this.dataChange.emit({ ...this.nodeData, clusters: JSON.parse(JSON.stringify(this.clusters)) });
+  }
+
+  trackByIndex(index: number) {
+    return index;
   }
 }

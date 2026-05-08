@@ -148,14 +148,6 @@ type PanelMode = 'node' | 'edge' | 'global';
           <div class="empty-hint" *ngIf="!settings">Cargando…</div>
           <ng-container *ngIf="settings">
             <div class="section-label">Ajustes globales</div>
-            <label class="flag-row">
-              <input type="checkbox" [(ngModel)]="settings.logging" (ngModelChange)="saveSettings()" />
-              <span>Logging</span>
-            </label>
-            <label class="flag-row">
-              <input type="checkbox" [(ngModel)]="settings.development" (ngModelChange)="saveSettings()" />
-              <span>Development Mode</span>
-            </label>
             <div class="field">
               <label>Base Image</label>
               <input type="text" [(ngModel)]="settings.base_image" (ngModelChange)="saveSettings()" placeholder="ubuntu:20.04" />
@@ -163,7 +155,7 @@ type PanelMode = 'node' | 'edge' | 'global';
 
             <div class="divider"></div>
             <div class="section-label">Cluster Latencies</div>
-            <div class="latency-item" *ngFor="let lat of clusterLatencies; let i = index">
+            <div class="latency-item" *ngFor="let lat of clusterLatencies; let i = index; trackBy: trackByIndex">
               <div class="field-row">
                 <div class="field">
                   <label>Origen</label>
@@ -376,7 +368,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   sourceEndpoints: string[] = [];
 
   // Global
-  settings: GlobalSettings = { logging: false, development: false, base_image: '' };
+  settings: GlobalSettings = { logging: true, development: true, base_image: '' };
   clusterLatencies: ClusterLatency[] = [];
 
   private subs = new Subscription();
@@ -486,5 +478,9 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   removeLatency(i: number) {
     this.clusterLatencies = this.clusterLatencies.filter((_, idx) => idx !== i);
     this.saveLatencies();
+  }
+
+  trackByIndex(index: number) {
+    return index;
   }
 }
