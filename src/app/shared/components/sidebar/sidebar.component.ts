@@ -14,34 +14,6 @@ import { CommonModule } from '@angular/common';
           <span class="cube-label">Service</span>
         </div>
       </div>
-
-      <div class="section-label mt">Resilience Patterns</div>
-      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'timeout')">
-        <span class="item-icon to">TO</span>
-        <div class="item-info">
-          <span>Timeout</span>
-          <small>Límite de tiempo de respuesta</small>
-        </div>
-      </div>
-      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'retry')">
-        <span class="item-icon rt">RT</span>
-        <div class="item-info">
-          <span>Retry</span>
-          <small>Reintento con backoff exponencial</small>
-        </div>
-      </div>
-      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'fallback')">
-        <span class="item-icon fb">FB</span>
-        <div class="item-info">
-          <span>Fallback</span>
-          <small>Respuesta alternativa ante fallo</small>
-        </div>
-      </div>
-
-      <p class="hint">
-        💡 Los patrones se configuran en la pestaña <strong>Endpoints</strong>
-        del panel de propiedades del servicio.
-      </p>
     </div>
   `,
   styles: [`

@@ -47,11 +47,6 @@ Graph.registerNode('service-node', {
   imports: [CommonModule],
   template: `
     <div class="canvas-container" #canvasContainer (contextmenu)="$event.preventDefault()"></div>
-
-    <div class="pattern-toast" *ngIf="showToast">
-      Selecciona el nodo y configura el patrón en la pestaña <strong>Endpoints</strong>
-    </div>
-
     <div class="apply-toast" *ngIf="showApplyToast">
       Cambios aplicados correctamente
     </div>
@@ -70,18 +65,13 @@ Graph.registerNode('service-node', {
     :host { display: block; position: relative; width: 100%; height: 100%; }
     .canvas-container { width: 100%; height: 100%; outline: none; }
 
-    .pattern-toast, .apply-toast {
+
+    .apply-toast {
       position: absolute; bottom: 24px; left: 50%;
       transform: translateX(-50%);
       padding: 10px 20px; border-radius: 8px; font-size: 13px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.5);
       animation: fadeInUp 0.2s ease; white-space: nowrap;
-    }
-    .pattern-toast {
-      background: #1f2d3d; border: 1px solid #007acc; color: #d9efff;
-      strong { color: #7dd3fc; }
-    }
-    .apply-toast {
       background: #0f3d24; border: 1px solid #22c55e; color: #bbf7d0;
     }
 
@@ -107,9 +97,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvasContainer') canvasContainer!: ElementRef;
   private graph!: Graph;
 
-  showToast      = false;
   showApplyToast = false;
-  private toastTimer: any;
   private applyToastTimer: any;
   private serviceCounter = 0;
 
@@ -212,17 +200,10 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
     const type = event.dataTransfer.getData('type');
     if (!type) return;
     const point = this.graph.clientToLocal({ x: event.clientX, y: event.clientY });
-    if (['timeout', 'retry', 'fallback'].includes(type)) {
-      this.showPatternToast(); return;
-    }
     if (type === 'service') this.createServiceNode(point.x, point.y);
   }
 
-  private showPatternToast() {
-    this.showToast = true;
-    clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => { this.showToast = false; }, 3500);
-  }
+
 
   private createServiceNode(x: number, y: number) {
     const name = `service-${++this.serviceCounter}`;

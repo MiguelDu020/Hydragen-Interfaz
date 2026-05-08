@@ -34,19 +34,25 @@ import { CommonModule } from '@angular/common';
   `,
   styles: [`
     @use '../../../../../styles/variables' as *;
-    .resilience-tab { display: flex; flex-direction: column; gap: 14px; }
+    .resilience-tab { 
+      display: flex; flex-direction: column; gap: 14px; 
+      width: 100%; overflow-x: auto; 
+    }
     .hint { font-size: 11px; color: $text-secondary; line-height: 1.5;
       strong { color: $accent-blue; }
     }
-    .summary-table { width: 100%; border-collapse: collapse; font-size: 12px;
-      th { text-align: left; padding: 6px 8px; color: $text-secondary; font-weight: 500; border-bottom: 1px solid $border-color; }
-      td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
-      .ep-name { color: $text-primary; font-family: monospace; font-size: 11px; }
+    .summary-table { 
+      width: 100%; border-collapse: collapse; font-size: 11px;
+      min-width: 320px;
+      th { text-align: left; padding: 6px 4px; color: $text-secondary; font-weight: 500; border-bottom: 1px solid $border-color; }
+      td { padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+      .ep-name { color: $text-primary; font-family: monospace; font-size: 10px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     }
     .badge {
-      padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600;
-      &.on  { background: rgba(0,200,100,0.15); color: #4ade80; border: 1px solid rgba(0,200,100,0.3); }
-      &.off { background: rgba(255,255,255,0.04); color: $text-secondary; border: 1px solid $border-color; }
+      display: inline-block; padding: 2px 4px; border-radius: 4px; font-size: 9px; font-weight: 600;
+      white-space: nowrap;
+      &.on  { background: rgba(0,200,100,0.1); color: #4ade80; border: 1px solid rgba(0,200,100,0.2); }
+      &.off { background: rgba(255,255,255,0.03); color: $text-secondary; border: 1px solid $border-color; opacity: 0.5; }
     }
     .empty { font-size: 12px; color: $text-secondary; }
     .btn-goto {
