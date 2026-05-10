@@ -27,6 +27,7 @@ app.add_middleware(
 # ── Global job store ──────────────────────────────────────────────────────────
 # Structure: job_id -> { status, logs, current_step, step_name, error, created_at }
 jobs: dict = {}
+metrics_process: Optional[subprocess.Popen] = None
 
 TOTAL_STEPS = 4
 
@@ -319,3 +320,40 @@ async def stream_logs(job_id: str):
             "Connection": "keep-alive",
         }
     )
+@app.get("/metrics/start")
+def start_metrics():
+    global metrics_process
+    
+    # Check if already running
+    if metrics_process and metrics_process.poll() is None:
+        return {"status": "already_running", "url": "http://localhost:3000"}
+    
+    try:
+        cmd = "kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring"
+        metrics_process = subprocess.Popen(
+            cmd,
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        # Give it a second to start
+        time.sleep(1.5)
+        
+        if metrics_process.poll() is not None:
+            # Command failed immediately
+            stdout, _ = metrics_process.communicate()
+            raise RuntimeError(f"kubectl failed: {stdout.decode()}")
+            
+        return {"status": "started", "url": "http://localhost:3000"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/metrics/stop")
+def stop_metrics():
+    global metrics_process
+    if metrics_process:
+        metrics_process.terminate()
+        metrics_process = None
+        return {"status": "stopped"}
+    return {"status": "not_running"}

@@ -100,4 +100,14 @@ export class ExecutionService {
       this.eventSource = null;
     }
   }
+
+  /** GET /metrics/start — starts the port-forward process */
+  startMetrics(): Observable<{ status: string; url: string }> {
+    return this.http.get<{ status: string; url: string }>(`${this.API_URL}/metrics/start`);
+  }
+
+  /** GET /metrics/stop — stops the port-forward process */
+  stopMetrics(): Observable<{ status: string }> {
+    return this.http.get<{ status: string }>(`${this.API_URL}/metrics/stop`);
+  }
 }

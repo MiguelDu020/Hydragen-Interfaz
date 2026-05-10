@@ -116,7 +116,7 @@ import { ExporterService } from '../../core/services/exporter.service';
         font-family: $font-mono;
         font-size: 12px;
         line-height: 1.6;
-        color: #e0e0e0;
+        color: var(--text-primary);
         white-space: pre-wrap;
         word-break: break-word;
       }

@@ -10,8 +10,8 @@ function trunc(text: string, maxChars: number): string {
   return text.length > maxChars ? text.substring(0, maxChars - 1) + '\u2026' : text;
 }
 
-const NODE_W  = 260;
-const NODE_H  = 130;
+const NODE_W = 260;
+const NODE_H = 130;
 
 // Registrar forma personalizada para los nodos de servicio
 Graph.registerNode('service-node', {
@@ -32,8 +32,8 @@ Graph.registerNode('service-node', {
     body: {
       refWidth: '100%',
       refHeight: '100%',
-      fill: '#1a1a1a',
-      stroke: '#333',
+      fill: 'var(--node-bg)',
+      stroke: 'var(--node-border)',
       strokeWidth: 1.2,
       rx: 10,
       ry: 10
@@ -70,7 +70,7 @@ Graph.registerNode('service-node', {
       position: absolute; bottom: 24px; left: 50%;
       transform: translateX(-50%);
       padding: 10px 20px; border-radius: 8px; font-size: 13px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
       animation: fadeInUp 0.2s ease; white-space: nowrap;
       background: #0f3d24; border: 1px solid #22c55e; color: #bbf7d0;
     }
@@ -81,14 +81,14 @@ Graph.registerNode('service-node', {
     }
 
     .ctx-menu {
-      position: absolute; background: #1c1c1c; border: 1px solid #333;
+      position: absolute; background: var(--bg-surface); border: 1px solid var(--border-color);
       border-radius: 6px; padding: 4px 0; z-index: 100;
-      min-width: 140px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      min-width: 140px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
       button {
         display: block; width: 100%; background: transparent; border: none;
-        color: #e0e0e0; padding: 8px 16px; text-align: left;
+        color: var(--text-primary); padding: 8px 16px; text-align: left;
         font-size: 13px; cursor: pointer;
-        &:hover { background: rgba(255,255,255,0.07); }
+        &:hover { background: rgba(128,128,128,0.1); }
       }
     }
   `]
@@ -101,12 +101,12 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   private applyToastTimer: any;
   private serviceCounter = 0;
 
-  ctxMenu: { visible: boolean; x: number; y: number; type: 'node'|'edge'|''; cell: any } =
+  ctxMenu: { visible: boolean; x: number; y: number; type: 'node' | 'edge' | ''; cell: any } =
     { visible: false, x: 0, y: 0, type: '', cell: null };
   private copiedData: any = null;
   private applyConfirmedSub?: Subscription;
 
-  constructor(private graphService: GraphService) {}
+  constructor(private graphService: GraphService) { }
 
   ngAfterViewInit() { this.initGraph(); }
 
@@ -115,8 +115,8 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   private initGraph() {
     this.graph = new Graph({
       container: this.canvasContainer.nativeElement,
-      background: { color: '#0a0a0a' },
-      grid: { visible: true, type: 'dot', args: { color: '#1e1e1e', size: 20 } },
+      background: { color: 'var(--graph-bg)' },
+      grid: { visible: true, type: 'dot', args: { color: 'var(--graph-grid)', size: 20 } },
       connecting: {
         allowBlank: false,
         allowLoop: false,
@@ -124,7 +124,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
         connector: 'rounded',
         router: 'manhattan',          // ← autorouting restaurado
         createEdge: () => new Shape.Edge({
-          attrs: { line: { stroke: '#a0a0a0', strokeWidth: 2, targetMarker: { name: 'block', size: 12 } } },
+          attrs: { line: { stroke: 'var(--text-secondary)', strokeWidth: 2, targetMarker: { name: 'block', size: 12 } } },
           data: {
             sourceEndpoint: '', targetEndpoint: 'end1',
             port: 80, protocol: 'http',
@@ -134,7 +134,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
         })
       },
       mousewheel: { enabled: true, modifiers: ['ctrl', 'meta'] },
-      panning:    { enabled: true }
+      panning: { enabled: true }
     });
 
     this.graphService.setGraph(this.graph);
@@ -223,37 +223,37 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   createServiceNodeWithData(x: number, y: number, data: any) {
     const name = data.name || `service-${++this.serviceCounter}`;
 
-    const cpuReq = data.resources?.requests?.cpu    || '500m';
-    const cpuLim = data.resources?.limits?.cpu      || '1000m';
+    const cpuReq = data.resources?.requests?.cpu || '500m';
+    const cpuLim = data.resources?.limits?.cpu || '1000m';
     const memReq = data.resources?.requests?.memory || '256M';
-    const memLim = data.resources?.limits?.memory   || '1024M';
-    const repl   = data.clusters?.[0]?.replicas ?? 1;
-    const clust  = data.clusters?.[0]?.cluster  || 'cluster1';
-    const proto  = (data.protocol || 'http').toUpperCase();
+    const memLim = data.resources?.limits?.memory || '1024M';
+    const repl = data.clusters?.[0]?.replicas ?? 1;
+    const clust = data.clusters?.[0]?.cluster || 'cluster1';
+    const proto = (data.protocol || 'http').toUpperCase();
 
     // Texto truncado en JS — garantía de que nunca desborda la caja
     // Título: ~155px disponibles a fontSize 12 ≈ máx 20 chars
-    const titleTxt    = trunc(name, 20);
+    const titleTxt = trunc(name, 20);
     // Body: ~232px disponibles a fontSize 10 monospace ≈ máx 36 chars
     const resourceTxt = trunc(`CPU ${cpuReq}/${cpuLim}  MEM ${memReq}/${memLim}`, 36);
-    const clusterTxt  = trunc(`Replicas ${repl}  Cluster ${clust}`, 34);
+    const clusterTxt = trunc(`Replicas ${repl}  Cluster ${clust}`, 34);
 
     this.graphService.addNode({
       x, y, width: NODE_W, height: NODE_H, shape: 'service-node', data,
       attrs: {
-        divider:       { x1: 0, y1: 42, x2: NODE_W, y2: 42, stroke: '#2a2a2a', strokeWidth: 1 },
-        icon:          { text: '\u25c9', fill: '#7f8c9d', fontSize: 14, x: 14, y: 26 },
-        title:         { text: titleTxt, fill: '#e0e0e0', fontSize: 12, fontWeight: 600, x: 34, y: 26 },
-        badgeBg:       { fill: '#1f4460', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
-        badge:         { text: proto, fill: '#d9efff', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },
-        resources:     { text: resourceTxt, fill: '#a8a8a8', fontSize: 10, x: 14, y: 68, fontFamily: 'monospace' },
-        cluster:       { text: clusterTxt,  fill: '#a8a8a8', fontSize: 10, x: 14, y: 86, fontFamily: 'monospace' },
-        patternBadges: { text: '', fill: '#9cc8ff', fontSize: 10, fontWeight: 700, x: 14, y: 110, fontFamily: 'monospace' }
+        divider: { x1: 0, y1: 42, x2: NODE_W, y2: 42, stroke: 'var(--node-divider)', strokeWidth: 1 },
+        icon: { text: '\u25c9', fill: 'var(--text-muted)', fontSize: 14, x: 14, y: 26 },
+        title:         { text: titleTxt, fill: 'var(--node-text)', fontSize: 13, fontWeight: 700, x: 34, y: 26 },
+        badgeBg:       { fill: 'var(--node-badge-bg)', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
+        badge:         { text: proto, fill: 'var(--node-badge-text)', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },
+        resources:     { text: resourceTxt, fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 68, fontFamily: 'monospace' },
+        cluster:       { text: clusterTxt,  fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 86, fontFamily: 'monospace' },
+        patternBadges: { text: '', fill: 'var(--accent-blue)', fontSize: 10, fontWeight: 700, x: 14, y: 110, fontFamily: 'monospace' }
       },
       ports: {
         groups: {
-          in:  { position: 'left',  attrs: { circle: { r: 7, magnet: true, stroke: '#007acc', strokeWidth: 2.5, fill: '#1a1a1a' } } },
-          out: { position: 'right', attrs: { circle: { r: 7, magnet: true, stroke: '#007acc', strokeWidth: 2.5, fill: '#1a1a1a' } } }
+          in: { position: 'left', attrs: { circle: { r: 7, magnet: true, stroke: 'var(--accent-blue)', strokeWidth: 2.5, fill: 'var(--node-bg)' } } },
+          out: { position: 'right', attrs: { circle: { r: 7, magnet: true, stroke: 'var(--accent-blue)', strokeWidth: 2.5, fill: 'var(--node-bg)' } } }
         },
         items: [{ id: 'port_in', group: 'in' }, { id: 'port_out', group: 'out' }]
       }

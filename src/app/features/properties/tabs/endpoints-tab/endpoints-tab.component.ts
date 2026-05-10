@@ -219,9 +219,9 @@ import { GraphService } from '../../../../core/services/graph.service';
 
     .badge {
       padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 700;
-      &.to { background: #1a3340; color: #7dd3fc; border: 1px solid #3c5e6e; }
-      &.rt { background: #2a3318; color: #bef264; border: 1px solid #4e5e3c; }
-      &.fb { background: #3a2e18; color: #fcd34d; border: 1px solid #6e5a3c; }
+      &.to { background: var(--bg-accent-subtle); color: var(--to-color); border: 1px solid var(--to-color); }
+      &.rt { background: var(--bg-success-subtle); color: var(--rt-color); border: 1px solid var(--rt-color); }
+      &.fb { background: var(--bg-warning-subtle); color: var(--fb-color); border: 1px solid var(--fb-color); }
     }
 
     .btn-remove-ep {
@@ -234,7 +234,7 @@ import { GraphService } from '../../../../core/services/graph.service';
     .ep-body {
       padding: 12px 14px;
       display: flex; flex-direction: column; gap: 10px;
-      background: #0f0f0f;
+      background: var(--bg-primary);
     }
 
     .subsection-title {
@@ -269,9 +269,9 @@ import { GraphService } from '../../../../core/services/graph.service';
     .flag-toggle {
       display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 11px;
       input { width: auto; accent-color: $accent-blue; }
-      .to-label { color: #7dd3fc; }
-      .rt-label { color: #bef264; }
-      .fb-label { color: #fcd34d; }
+      .to-label { color: var(--to-color); }
+      .rt-label { color: var(--rt-color); }
+      .fb-label { color: var(--fb-color); }
     }
 
     .pattern-block {
@@ -281,12 +281,12 @@ import { GraphService } from '../../../../core/services/graph.service';
       display: flex; align-items: center; gap: 8px; padding: 8px 10px;
       background: $bg-surface; cursor: pointer; font-size: 12px; font-weight: 500;
       input { width: auto; accent-color: $accent-blue; }
-      .to-label { color: #7dd3fc; }
-      .rt-label { color: #bef264; }
-      .fb-label { color: #fcd34d; }
+      .to-label { color: var(--to-color); }
+      .rt-label { color: var(--rt-color); }
+      .fb-label { color: var(--fb-color); }
     }
     .pattern-fields {
-      padding: 10px; background: #0d0d0d;
+      padding: 10px; background: var(--bg-primary);
       display: flex; flex-direction: column; gap: 8px;
     }
 
@@ -306,7 +306,7 @@ export class EndpointsTabComponent implements OnChanges {
   cachedEdges: { [key: string]: any[] } = {};
   expandedIdx: number | null = 0;
 
-  constructor(private graphService: GraphService) {}
+  constructor(private graphService: GraphService) { }
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
@@ -360,8 +360,8 @@ export class EndpointsTabComponent implements OnChanges {
     const checked = (event.target as HTMLInputElement).checked;
     if (!ep.resilience_patterns) ep.resilience_patterns = {};
     if (checked) {
-      if (pattern === 'timeout')  ep.resilience_patterns.timeout  = { duration_ms: 5000 };
-      if (pattern === 'retry')    ep.resilience_patterns.retry    = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 };
+      if (pattern === 'timeout') ep.resilience_patterns.timeout = { duration_ms: 5000 };
+      if (pattern === 'retry') ep.resilience_patterns.retry = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 };
       if (pattern === 'fallback') ep.resilience_patterns.fallback = { fallback_response: 'default-response', trigger_on_error_rate: 0.5 };
     } else {
       delete ep.resilience_patterns[pattern];
@@ -394,20 +394,20 @@ export class EndpointsTabComponent implements OnChanges {
     if (!graph || !this.nodeId) return [];
     return graph.getEdges()
       .filter(edge => {
-        const srcId  = edge.getSourceCellId();
-        const srcEp  = (edge.getData() || {} as any).sourceEndpoint;
+        const srcId = edge.getSourceCellId();
+        const srcEp = (edge.getData() || {} as any).sourceEndpoint;
         const isFirst = this.endpoints.length > 0 && this.endpoints[0]?.name === endpointName;
         return srcId === this.nodeId && (srcEp === endpointName || (!srcEp && isFirst));
       })
       .map(edge => {
-        const ed      = (edge.getData() || {}) as any;
+        const ed = (edge.getData() || {}) as any;
         const tgtCell = graph.getCellById(edge.getTargetCellId() as string);
         const tgtData = (tgtCell?.isNode() ? (tgtCell as any).getData() : {}) || {};
         return {
           edge,
-          edgeData:      { ...ed },
-          targetName:    tgtData.name || 'unknown',
-          targetEndpoint:ed.targetEndpoint || tgtData.endpoints?.[0]?.name || 'end1'
+          edgeData: { ...ed },
+          targetName: tgtData.name || 'unknown',
+          targetEndpoint: ed.targetEndpoint || tgtData.endpoints?.[0]?.name || 'end1'
         };
       });
   }

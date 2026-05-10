@@ -1,23 +1,105 @@
-// Colores (del mockup)
-$bg-primary: #0a0a0a;
-$bg-card: #141414;
-$bg-surface: #1c1c1c;
-$accent-blue: #007bff;
-$accent-blue-light: #3b9eff;
-$accent-hover: #0056b3;
-$text-primary: #ffffff;
-$text-secondary: #a0a0a0;
-$border-color: #2a2a2a;
-$success: #22c55e;
-$danger: #ef4444;
-$warning: #f59e0b;
-
-// Resiliencia (colores por patrón)
-$bulkhead-color: #8b5cf6;    // violeta
-$fallback-color: #f59e0b;    // amarillo
-$loadshedding-color: #ef4444; // rojo
-
 // Tipografía
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono&display=swap');
 $font-primary: 'Inter', sans-serif;
 $font-mono: 'JetBrains Mono', monospace;
+
+:root {
+  // Common colors
+  --accent-blue: #007bff;
+  --accent-blue-light: #3b9eff;
+  --accent-hover: #0056b3;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+
+  // Resilience colors
+  --bulkhead-color: #8b5cf6;
+  --fallback-color: #f59e0b;
+  --loadshedding-color: #ef4444;
+}
+
+body.dark-theme {
+  --bg-primary: #0a0a0a;
+  --bg-card: #141414;
+  --bg-surface: #1c1c1c;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --border-color: #2a2a2a;
+
+  // Graph specific
+  --graph-bg: #0a0a0a;
+  --graph-grid: #1e1e1e;
+  --node-bg: #1a1a1a;
+  --node-border: #333333;
+  --node-divider: #2a2a2a;
+  --node-text: #e0e0e0;
+  --node-text-muted: #a8a8a8;
+  --node-badge-bg: #1f4460;
+  --node-badge-text: #d9efff;
+
+  // Patterns
+  --to-color: #7dd3fc;
+  --rt-color: #bef264;
+  --fb-color: #fcd34d;
+
+  // Helpers
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --bg-subtle: rgba(255, 255, 255, 0.03);
+  --bg-accent-subtle: rgba(0, 122, 255, 0.1);
+  --bg-success-subtle: rgba(34, 197, 94, 0.1);
+  --bg-warning-subtle: rgba(245, 158, 11, 0.1);
+  --text-muted: #7f8c9d;
+  --scrollbar-thumb: #333333;
+}
+
+body.light-theme {
+  --bg-primary: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-surface: #f1f5f9;
+  --text-primary: #020617;
+  --text-secondary: #1e293b;
+  --border-color: #cbd5e1;
+
+  // Graph specific
+  --graph-bg: #f8fafc;
+  --graph-grid: #cbd5e1;
+  --node-bg: #ffffff;
+  --node-border: #cbd5e1;
+  --node-divider: #f1f5f9;
+  --node-text: #000000;
+  --node-text-muted: #0a0a0a;
+  --node-badge-bg: #dbeafe;
+  --node-badge-text: #1e40af;
+
+  // Patterns
+  --to-color: #0369a1;
+  --rt-color: #4d7c0f;
+  --fb-color: #a16207;
+
+  // Helpers
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-subtle: rgba(0, 0, 0, 0.02);
+  --bg-accent-subtle: rgba(0, 122, 255, 0.08);
+  --bg-success-subtle: rgba(34, 197, 94, 0.08);
+  --bg-warning-subtle: rgba(245, 158, 11, 0.08);
+  --text-muted: #334155;
+  --scrollbar-thumb: #64748b;
+}
+
+// SCSS Variables mappings to CSS Variables for backward compatibility in SCSS files
+$bg-primary: var(--bg-primary);
+$bg-card: var(--bg-card);
+$bg-surface: var(--bg-surface);
+$accent-blue: var(--accent-blue);
+$accent-blue-light: var(--accent-blue-light);
+$accent-hover: var(--accent-hover);
+$text-primary: var(--text-primary);
+$text-secondary: var(--text-secondary);
+$border-color: var(--border-color);
+$success: var(--success);
+$danger: var(--danger);
+$warning: var(--warning);
+
+$bulkhead-color: var(--bulkhead-color);
+$fallback-color: var(--fallback-color);
+$loadshedding-color: var(--loadshedding-color);

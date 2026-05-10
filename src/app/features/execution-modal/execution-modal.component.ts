@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription, interval } from 'rxjs';
 import { takeWhile } from 'rxjs/operators';
+import { SafeUrlPipe } from '../../shared/pipes/safe-url.pipe';
 
 import { ExporterService } from '../../core/services/exporter.service';
 import {
@@ -20,7 +21,7 @@ import {
   LogLine,
 } from '../../core/services/execution.service';
 
-type ModalView = 'config' | 'running';
+type ModalView = 'config' | 'running' | 'metrics';
 type StepStatus = 'pending' | 'running' | 'done' | 'error';
 
 interface PipelineStep {
@@ -32,7 +33,7 @@ interface PipelineStep {
 @Component({
   selector: 'app-execution-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SafeUrlPipe],
   templateUrl: './execution-modal.component.html',
   styleUrls: ['./execution-modal.component.scss'],
 })
@@ -54,6 +55,8 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
   stepName = '';
   errorMessage = '';
   elapsedSeconds = 0;
+  metricsUrl = 'http://localhost:3000';
+  loadingMetrics = false;
 
   logs: LogLine[] = [];
 
@@ -142,6 +145,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
     this.sshWarningAccepted = false;
     this.steps.forEach((s) => (s.status = 'pending'));
     this.timerSub?.unsubscribe();
+    this.stopMetrics();
   }
 
   logLineClass(log: LogLine): string {
@@ -174,6 +178,35 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
     const m = Math.floor(this.elapsedSeconds / 60);
     const s = this.elapsedSeconds % 60;
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+
+  // ── Metrics Actions ────────────────────────────────────────────────────────
+  showMetrics(): void {
+    this.view = 'metrics';
+    this.loadingMetrics = true;
+    const sub = this.executionService.startMetrics().subscribe({
+      next: (res) => {
+        this.metricsUrl = res.url;
+        this.loadingMetrics = false;
+      },
+      error: (err) => {
+        console.error('Error starting metrics:', err);
+        this.loadingMetrics = false;
+        // Even if error, try to show the iframe in case it's already running manually
+      }
+    });
+    this.subs.push(sub);
+  }
+
+  hideMetrics(): void {
+    this.view = 'running';
+  }
+
+  private stopMetrics(): void {
+    const sub = this.executionService.stopMetrics().subscribe({
+      error: (err) => console.warn('Error stopping metrics:', err)
+    });
+    this.subs.push(sub);
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -298,5 +331,6 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
     this.subs = [];
     this.timerSub?.unsubscribe();
     this.executionService.closeStream();
+    this.stopMetrics();
   }
 }

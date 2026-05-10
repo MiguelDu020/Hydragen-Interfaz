@@ -51,7 +51,7 @@ import { CommonModule } from '@angular/common';
     .badge {
       display: inline-block; padding: 2px 4px; border-radius: 4px; font-size: 9px; font-weight: 600;
       white-space: nowrap;
-      &.on  { background: rgba(0,200,100,0.1); color: #4ade80; border: 1px solid rgba(0,200,100,0.2); }
+      &.on  { background: var(--bg-success-subtle); color: var(--success); border: 1px solid var(--success); }
       &.off { background: rgba(255,255,255,0.03); color: $text-secondary; border: 1px solid $border-color; opacity: 0.5; }
     }
     .empty { font-size: 12px; color: $text-secondary; }

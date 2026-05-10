@@ -216,7 +216,7 @@ type PanelMode = 'node' | 'edge' | 'global';
     .header-icon {
       font-size: 18px;
       color: $accent-blue;
-      &.edge-icon { color: #a0a0a0; }
+      &.edge-icon { color: var(--text-secondary); }
     }
     .header-title  { font-size: 14px; font-weight: 600; color: $text-primary; }
     .header-sub    { font-size: 10px; color: $text-secondary; }
@@ -305,9 +305,9 @@ type PanelMode = 'node' | 'edge' | 'global';
       cursor: pointer;
       padding: 4px 0;
       input { width: auto; accent-color: $accent-blue; }
-      .to-lbl { color: #7dd3fc; }
-      .rt-lbl { color: #bef264; }
-      .fb-lbl { color: #fcd34d; }
+      .to-lbl { color: var(--to-color); }
+      .rt-lbl { color: var(--rt-color); }
+      .fb-lbl { color: var(--fb-color); }
       &.disabled { opacity: 0.4; cursor: not-allowed; }
     }
 

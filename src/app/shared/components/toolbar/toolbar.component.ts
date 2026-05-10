@@ -5,6 +5,7 @@ import { ExporterService } from '../../../core/services/exporter.service';
 import { GraphService } from '../../../core/services/graph.service';
 import { HydraGenConfig } from '../../../core/models/hydragen.model';
 import { ExecutionModalComponent } from '../../../features/execution-modal/execution-modal.component';
+import { ThemeService } from '../../../core/services/theme.service';
 
 @Component({
   selector: 'app-toolbar',
@@ -53,6 +54,17 @@ import { ExecutionModalComponent } from '../../../features/execution-modal/execu
           </svg>
           Ejecutar Benchmark
         </button>
+
+        <div class="separator"></div>
+
+        <button class="icon-btn theme-toggle" (click)="toggleTheme()" [title]="isDark ? 'Activar tema claro' : 'Activar tema oscuro'">
+          <svg *ngIf="isDark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg *ngIf="!isDark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -63,7 +75,7 @@ import { ExecutionModalComponent } from '../../../features/execution-modal/execu
     ></app-execution-modal>
   `,
   styles: [`
-    :host { display: block; background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%); border-bottom: 1px solid #333; }
+    :host { display: block; background: var(--bg-card); border-bottom: 1px solid var(--border-color); }
     .toolbar { display: flex; align-items: center; gap: 20px; padding: 12px 24px; min-height: 56px; }
 
     .left-section {
@@ -72,18 +84,18 @@ import { ExecutionModalComponent } from '../../../features/execution-modal/execu
       align-items: center;
       gap: 12px;
     }
-    .left-section h3 { margin: 0; color: #e0e0e0; font-size: 17px; font-weight: 600; letter-spacing: 0.2px; }
+    .left-section h3 { margin: 0; color: var(--text-primary); font-size: 17px; font-weight: 600; letter-spacing: 0.2px; }
 
     .history-btns {
       display: flex;
       gap: 4px;
-      border-left: 1px solid #2a2a2a;
+      border-left: 1px solid var(--border-color);
       padding-left: 12px;
     }
     .icon-btn {
       background: transparent;
-      border: 1px solid #2a2a2a;
-      color: #a0a0a0;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
       width: 30px;
       height: 30px;
       border-radius: 6px;
@@ -93,16 +105,16 @@ import { ExecutionModalComponent } from '../../../features/execution-modal/execu
       justify-content: center;
       transition: all 0.15s;
       padding: 0;
-      &:hover { border-color: #4a4a4a; color: #e0e0e0; background: #1d1d1d; }
+      &:hover { border-color: var(--text-secondary); color: var(--text-primary); background: var(--bg-surface); }
     }
 
     .right-section { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
     .btn {
-      border: 1px solid #3a3a3a; background: #171717; color: #ddd;
+      border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-primary);
       padding: 7px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; transition: all 0.2s ease;
-      &:hover:not(:disabled) { border-color: #5a5a5a; background: #1d1d1d; }
-      &.primary { border-color: #007acc; color: #d9efff; background: #0f2535; &:hover { background: #133044; } }
-      &.accent  { border-color: #2f9e5a; color: #d8f5e3; background: #153123; &:hover { background: #1a3e2c; } }
+      &:hover:not(:disabled) { border-color: var(--text-secondary); background: var(--bg-hover); }
+      &.primary { border-color: var(--accent-blue); color: var(--node-badge-text); background: var(--node-badge-bg); &:hover { background: var(--bg-accent-subtle); } }
+      &.accent  { border-color: var(--success); color: var(--success); background: var(--bg-success-subtle); &:hover { background: rgba(34, 197, 94, 0.15); } }
       &.execute {
         border-color: #22c55e;
         color: #000;
@@ -121,8 +133,14 @@ import { ExecutionModalComponent } from '../../../features/execution-modal/execu
     .separator {
       width: 1px;
       height: 22px;
-      background: #2a2a2a;
+      background: var(--border-color);
       margin: 0 4px;
+    }
+    .theme-toggle {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      &:hover { color: var(--text-primary); background: var(--bg-surface); }
     }
   `]
 })
@@ -133,8 +151,17 @@ export class ToolbarComponent {
 
   constructor(
     private exporterService: ExporterService,
-    private graphService: GraphService
+    private graphService: GraphService,
+    private themeService: ThemeService
   ) {}
+
+  get isDark(): boolean {
+    return this.themeService.getCurrentTheme() === 'dark';
+  }
+
+  toggleTheme(): void {
+    this.themeService.toggleTheme();
+  }
 
   get hasNodes(): boolean {
     const g = this.graphService.getGraph();

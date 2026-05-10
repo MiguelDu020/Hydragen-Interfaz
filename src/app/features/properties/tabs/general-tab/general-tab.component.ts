@@ -54,10 +54,10 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
       .toggle-label { font-size: 12px; color: $text-primary; }
       input[type="checkbox"] { display: none; }
       .toggle-track {
-        width: 34px; height: 18px; background: #333; border-radius: 9px; position: relative; transition: background 0.2s;
-        &::after { content: ''; position: absolute; width: 14px; height: 14px; background: #888; border-radius: 50%; top: 2px; left: 2px; transition: all 0.2s; }
+        width: 34px; height: 18px; background: var(--border-color); border-radius: 9px; position: relative; transition: background 0.2s;
+        &::after { content: ''; position: absolute; width: 14px; height: 14px; background: var(--text-secondary); border-radius: 50%; top: 2px; left: 2px; transition: all 0.2s; }
       }
-      input:checked + .toggle-track { background: $accent-blue;
+      input:checked + .toggle-track { background: var(--accent-blue);
         &::after { left: 18px; background: white; }
       }
     }

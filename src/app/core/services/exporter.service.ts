@@ -5,7 +5,7 @@ import { HydraGenConfig, CalledService } from '../models/hydragen.model';
 
 @Injectable({ providedIn: 'root' })
 export class ExporterService {
-  constructor(private graphService: GraphService) {}
+  constructor(private graphService: GraphService) { }
 
   private normalizeAnnotations(annotations: any): Record<string, string> | null {
     if (!annotations) return null;
@@ -28,9 +28,9 @@ export class ExporterService {
     if (!graph) throw new Error('Graph not initialized');
 
     const latencies = this.graphService.getClusterLatencies();
-    const settings  = this.graphService.getSettings();
-    const nodes     = graph.getNodes();
-    const allEdges  = graph.getEdges();
+    const settings = this.graphService.getSettings();
+    const nodes = graph.getNodes();
+    const allEdges = graph.getEdges();
 
     const services: any[] = nodes.map(node => {
       const nd = (node.getData() || {}) as any;
@@ -39,8 +39,8 @@ export class ExporterService {
       const clusters = (nd.clusters || [{ cluster: 'cluster1', replicas: 1, namespace: 'default' }])
         .map((c: any) => {
           const out: any = {
-            cluster:   c.cluster   || 'cluster1',
-            replicas:  c.replicas  ?? 1,
+            cluster: c.cluster || 'cluster1',
+            replicas: c.replicas ?? 1,
             namespace: c.namespace || 'default'
           };
           if (c.node) out.node = c.node;
@@ -51,14 +51,14 @@ export class ExporterService {
 
       // --- Service base ---
       const service: any = {
-        name:           nd.name     || 'unnamed-service',
-        protocol:       nd.protocol || 'http',
+        name: nd.name || 'unnamed-service',
+        protocol: nd.protocol || 'http',
         clusters,
-        resources:      nd.resources || { limits: { cpu: '1000m', memory: '1024M' }, requests: { cpu: '500m', memory: '256M' } },
-        processes:      nd.processes      ?? 0,
-        readiness_probe:nd.readiness_probe ?? 2
+        resources: nd.resources || { limits: { cpu: '1000m', memory: '1024M' }, requests: { cpu: '500m', memory: '256M' } },
+        processes: nd.processes ?? 0,
+        readiness_probe: nd.readiness_probe ?? 2
       };
-      if (nd.base_image)  service.base_image  = nd.base_image;
+      if (nd.base_image) service.base_image = nd.base_image;
 
       // --- Outgoing edges for this node ---
       const outEdges = allEdges.filter(e => e.getSourceCellId() === node.id);
@@ -78,7 +78,7 @@ export class ExporterService {
         // Filter edges that belong to this endpoint
         const epEdges = outEdges.filter(edge => {
           const edData = edge.getData() || {};
-          const srcEp  = edData.sourceEndpoint;
+          const srcEp = edData.sourceEndpoint;
           return srcEp === ep.name || (!srcEp && epIdx === 0);
         });
 
@@ -87,41 +87,41 @@ export class ExporterService {
 
         // Build called_services from graph edges
         const calledServices: any[] = epEdges.map(edge => {
-          const ed      = edge.getData() || {};
+          const ed = edge.getData() || {};
           const tgtNode = graph.getCellById(edge.getTargetCellId() as string);
           const tgtData = (tgtNode?.isNode() ? (tgtNode as any).getData() : {}) || {};
 
           const cs: any = {
-            service:              tgtData.name   || 'unknown',
-            endpoint:             ed.targetEndpoint || (tgtData.endpoints?.[0]?.name) || 'end1',
-            port:                 ed.port     ?? 80,
-            protocol:             ed.protocol || tgtData.protocol || 'http',
-            traffic_forward_ratio:ed.traffic_forward_ratio ?? 1,
-            request_payload_size: ed.request_payload_size  ?? 0
+            service: tgtData.name || 'unknown',
+            endpoint: ed.targetEndpoint || (tgtData.endpoints?.[0]?.name) || 'end1',
+            port: ed.port ?? 80,
+            protocol: ed.protocol || tgtData.protocol || 'http',
+            traffic_forward_ratio: ed.traffic_forward_ratio ?? 1,
+            request_payload_size: ed.request_payload_size ?? 0
           };
 
           // Build Resilience Patterns for this specific call
           const csRp: any = {};
-          
+
           // Retry -> exponential_backoff
           if (rp.retry) {
             csRp.exponential_backoff = {
-              initial:      (rp.retry.backoff_ms || 500) / 1000,
-              max:          (rp.retry.max_backoff_ms || 5000) / 1000,
-              multiplier:   rp.retry.backoff_multiplier || 2.0,
+              initial: (rp.retry.backoff_ms || 500) / 1000,
+              max: (rp.retry.max_backoff_ms || 5000) / 1000,
+              multiplier: rp.retry.backoff_multiplier || 2.0,
               max_attempts: rp.retry.max_attempts || 3
             };
           }
 
           // Timeout
           if (rp.timeout) {
-            csRp.timeout = { duration_ms: rp.timeout.duration_ms || 5000 };
+            csRp.timeout = { duration: rp.timeout.duration_ms || 5000 };
           }
 
           // Fallback
           if (rp.fallback) {
             csRp.fallback = {
-              fallback_response:     rp.fallback.fallback_response || 'default-response',
+              fallback_response: rp.fallback.fallback_response || 'default-response',
               trigger_on_error_rate: rp.fallback.trigger_on_error_rate || 0.5
             };
           }
@@ -135,16 +135,16 @@ export class ExporterService {
 
         // Build endpoint output
         return {
-          name:           ep.name           || `end${epIdx + 1}`,
+          name: ep.name || `end${epIdx + 1}`,
           execution_mode: ep.execution_mode || 'sequential',
           cpu_complexity: {
             execution_time: ep.cpu_complexity?.execution_time || 0.001,
-            threads:        ep.cpu_complexity?.threads        || 1
+            threads: ep.cpu_complexity?.threads || 1
           },
           network_complexity: {
-            forward_requests:      ep.network_complexity?.forward_requests || (calledServices.length > 0 ? 'synchronous' : 'none'),
+            forward_requests: ep.network_complexity?.forward_requests || (calledServices.length > 0 ? 'synchronous' : 'none'),
             response_payload_size: ep.network_complexity?.response_payload_size || 0,
-            called_services:       calledServices
+            called_services: calledServices
           }
         };
       });
@@ -165,8 +165,8 @@ export class ExporterService {
 
   downloadFile(content: string, filename: string, type: string) {
     const blob = new Blob([content], { type });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
