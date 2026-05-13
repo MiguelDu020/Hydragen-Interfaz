@@ -248,7 +248,7 @@ export class ToolbarComponent {
               }]
             },
             resilience_patterns: {
-              timeout: { duration_ms: 3000 },
+              timeout: { duration_s: 3 },
               retry: { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 }
             }
           }]

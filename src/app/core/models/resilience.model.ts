@@ -13,7 +13,7 @@ export interface CircuitBreakerConfig {
 }
 
 export interface TimeoutConfig {
-  duration_ms: number; // milisegundos
+  duration_s: number; // segundos
 }
 
 export interface RetryConfig {

@@ -143,8 +143,8 @@ import { GraphService } from '../../../../core/services/graph.service';
             </label>
             <div class="pattern-fields" *ngIf="ep.resilience_patterns?.timeout">
               <div class="field">
-                <label>Duration (ms)</label>
-                <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.timeout!.duration_ms" (ngModelChange)="emit()" />
+                <label>Duration (s)</label>
+                <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.timeout!.duration_s" (ngModelChange)="emit()" />
               </div>
             </div>
           </div>
@@ -432,7 +432,7 @@ export class EndpointsTabComponent implements OnChanges {
     const checked = (event.target as HTMLInputElement).checked;
     if (!ep.resilience_patterns) ep.resilience_patterns = {};
     if (checked) {
-      if (pattern === 'timeout') ep.resilience_patterns.timeout = { duration_ms: 5000 };
+      if (pattern === 'timeout') ep.resilience_patterns.timeout = { duration_s: 5 };
       if (pattern === 'retry') ep.resilience_patterns.retry = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 };
       if (pattern === 'fallback') ep.resilience_patterns.fallback = { type: 'static', response_code: 200, response_payload: 'fallback-response' };
       if (pattern === 'circuit_breaker') ep.resilience_patterns.circuit_breaker = { timeout: 5, retry_timer: 10 };

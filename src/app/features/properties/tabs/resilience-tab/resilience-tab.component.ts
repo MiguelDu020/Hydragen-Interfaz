@@ -77,7 +77,7 @@ export class ResilienceTabComponent implements OnChanges {
         const rp = ep.resilience_patterns || {};
         return {
           name:     ep.name || '?',
-          timeout:  rp.timeout  ? `✓ ${rp.timeout.duration_ms}ms`                                         : '',
+          timeout:  rp.timeout  ? `✓ ${rp.timeout.duration_s}s`                                          : '',
           retry:    rp.retry    ? `✓ ${rp.retry.max_attempts} intentos`                                    : '',
           fallback: rp.fallback ? `✓ ${rp.fallback.type === 'static' ? 'static:' + rp.fallback.response_code : 'svc:' + rp.fallback.service}` : '',
           cb:       rp.circuit_breaker ? `✓ TO:${rp.circuit_breaker.timeout}s` : ''

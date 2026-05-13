@@ -101,7 +101,7 @@ export class ExporterService {
         const outputRp: any = {};
 
         if (rp.timeout) {
-          outputRp.timeout = { duration: rp.timeout.duration_ms };
+          outputRp.timeout = { duration: rp.timeout.duration_s };
         }
         if (rp.retry) {
           outputRp.exponential_backoff = {
