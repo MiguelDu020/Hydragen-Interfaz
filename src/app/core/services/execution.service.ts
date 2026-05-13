@@ -53,6 +53,11 @@ export class ExecutionService {
     });
   }
 
+  /** POST /cancel/{jobId} — stop the running benchmark */
+  cancelBenchmark(jobId: string): Observable<any> {
+    return this.http.post<any>(`${this.API_URL}/cancel/${jobId}`, {});
+  }
+
   /** GET /status/{jobId} — one-shot status poll */
   getStatus(jobId: string): Observable<ExecutionStatus> {
     return this.http.get<ExecutionStatus>(`${this.API_URL}/status/${jobId}`);

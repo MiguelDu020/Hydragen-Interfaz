@@ -205,10 +205,11 @@
         <!-- Status: running -->
         <ng-container *ngIf="isRunning">
           <button
-            class="btn btn-ghost btn-disabled"
-            disabled
-            title="La cancelación no está soportada, espere a que termine o cierre el modal"
+            class="btn btn-danger-outline"
+            (click)="cancelar()"
+            [disabled]="isCancelling"
           >
+            <span class="spinner" *ngIf="isCancelling"></span>
             ✖ Cancelar Ejecución
           </button>
         </ng-container>

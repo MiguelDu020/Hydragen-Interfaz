@@ -18,6 +18,11 @@ export interface RetryConfig {
 }
 
 export interface FallbackConfig {
-  fallback_response: string;
-  trigger_on_error_rate: number; // 0.0 a 1.0
+  type: string;
+  response_code?: number;
+  response_payload?: string;
+  service?: string;
+  endpoint?: string;
+  port?: number;
 }
+

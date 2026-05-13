@@ -77,7 +77,7 @@ export class ResilienceTabComponent implements OnChanges {
           name:     ep.name || '?',
           timeout:  rp.timeout  ? `✓ ${rp.timeout.duration_ms}ms`                                         : '',
           retry:    rp.retry    ? `✓ ${rp.retry.max_attempts} intentos`                                    : '',
-          fallback: rp.fallback ? `✓ err≥${Math.round((rp.fallback.trigger_on_error_rate ?? 0.5) * 100)}%` : ''
+          fallback: rp.fallback ? `✓ ${rp.fallback.type === 'static' ? 'static:' + rp.fallback.response_code : 'svc:' + rp.fallback.service}` : ''
         };
       });
     }

@@ -70,6 +70,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
 
   // ── UI helpers ─────────────────────────────────────────────────────────────
   isStarting = false;
+  isCancelling = false;
   backendError = '';
   sshWarningAccepted = false;
 
@@ -123,6 +124,23 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
   confirmNoSsh(): void {
     this.sshWarningAccepted = true;
     this._startExecution();
+  }
+
+  cancelar(): void {
+    if (!this.jobId || this.jobStatus !== 'running') return;
+    
+    this.isCancelling = true;
+    const sub = this.executionService.cancelBenchmark(this.jobId).subscribe({
+      next: () => {
+        this.isCancelling = false;
+        // El estado cambiará a 'failed' mediante el polling o la respuesta del backend
+      },
+      error: (err) => {
+        console.error('Error al cancelar:', err);
+        this.isCancelling = false;
+      }
+    });
+    this.subs.push(sub);
   }
 
   cancelSshWarning(): void {

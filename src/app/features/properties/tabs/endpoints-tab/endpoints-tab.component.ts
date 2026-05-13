@@ -180,13 +180,56 @@ import { GraphService } from '../../../../core/services/graph.service';
             </label>
             <div class="pattern-fields" *ngIf="ep.resilience_patterns?.fallback">
               <div class="field">
-                <label>Respuesta por defecto</label>
-                <input type="text" [(ngModel)]="ep.resilience_patterns!.fallback!.fallback_response" (ngModelChange)="emit()" placeholder="default-response" />
+                <label>Tipo de Fallback</label>
+                <select [(ngModel)]="ep.resilience_patterns!.fallback!.type" (ngModelChange)="emit()">
+                  <option value="static">Static (Respuesta fija)</option>
+                  <option value="service">Service (Redirigir a otro servicio)</option>
+                </select>
               </div>
-              <div class="field">
-                <label>Tasa de error que activa (0.0 – 1.0)</label>
-                <input type="number" step="0.05" min="0" max="1" [(ngModel)]="ep.resilience_patterns!.fallback!.trigger_on_error_rate" (ngModelChange)="emit()" />
-              </div>
+
+              <!-- STATIC FIELDS -->
+              <ng-container *ngIf="ep.resilience_patterns!.fallback!.type === 'static'">
+                <div class="field-row">
+                  <div class="field">
+                    <label>Código de respuesta</label>
+                    <input type="number" [(ngModel)]="ep.resilience_patterns!.fallback!.response_code" (ngModelChange)="emit()" />
+                  </div>
+                  <div class="field">
+                    <label>Payload de respuesta</label>
+                    <input type="text" [(ngModel)]="ep.resilience_patterns!.fallback!.response_payload" (ngModelChange)="emit()" placeholder="fallback-response" />
+                  </div>
+                </div>
+              </ng-container>
+
+              <!-- SERVICE FIELDS -->
+              <ng-container *ngIf="ep.resilience_patterns!.fallback!.type === 'service'">
+                <div class="field-row">
+                  <div class="field">
+                    <label>Servicio Destino</label>
+                    <select [(ngModel)]="ep.resilience_patterns!.fallback!.service" (ngModelChange)="onFallbackServiceChange(ep)">
+                      <option [value]="undefined" disabled>Seleccionar servicio...</option>
+                      <option *ngFor="let s of getUniqueTargetServices(ep.name)" [value]="s">{{ s }}</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Endpoint</label>
+                    <select [(ngModel)]="ep.resilience_patterns!.fallback!.endpoint" (ngModelChange)="onFallbackEndpointChange(ep)" [disabled]="!ep.resilience_patterns!.fallback!.service">
+                      <option [value]="undefined" disabled>Seleccionar endpoint...</option>
+                      <option *ngFor="let e of getEndpointsForTarget(ep.name, ep.resilience_patterns!.fallback!.service!)" [value]="e">{{ e }}</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Puerto</label>
+                    <select [(ngModel)]="ep.resilience_patterns!.fallback!.port" (ngModelChange)="emit()" [disabled]="!ep.resilience_patterns!.fallback!.endpoint">
+                      <option [value]="undefined" disabled>Seleccionar puerto...</option>
+                      <option *ngFor="let p of getPortsForTarget(ep.name, ep.resilience_patterns!.fallback!.service!, ep.resilience_patterns!.fallback!.endpoint!)" [value]="p">{{ p }}</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="hint-error" *ngIf="getUniqueTargetServices(ep.name).length === 0">
+                  ⚠️ No hay conexiones salientes definidas para este endpoint en el canvas.
+                </div>
+              </ng-container>
             </div>
           </div>
 
@@ -295,6 +338,7 @@ import { GraphService } from '../../../../core/services/graph.service';
       padding: 8px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.15s;
       &:hover { border-color: $accent-blue; color: $accent-blue; }
     }
+    .hint-error { font-size: 10px; color: $danger; margin-top: 4px; }
   `]
 })
 export class EndpointsTabComponent implements OnChanges {
@@ -362,7 +406,7 @@ export class EndpointsTabComponent implements OnChanges {
     if (checked) {
       if (pattern === 'timeout') ep.resilience_patterns.timeout = { duration_ms: 5000 };
       if (pattern === 'retry') ep.resilience_patterns.retry = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 };
-      if (pattern === 'fallback') ep.resilience_patterns.fallback = { fallback_response: 'default-response', trigger_on_error_rate: 0.5 };
+      if (pattern === 'fallback') ep.resilience_patterns.fallback = { type: 'static', response_code: 200, response_payload: 'fallback-response' };
     } else {
       delete ep.resilience_patterns[pattern];
       if (Object.keys(ep.resilience_patterns).length === 0) delete ep.resilience_patterns;
@@ -375,6 +419,41 @@ export class EndpointsTabComponent implements OnChanges {
     const current = edge.getData() || {};
     edge.setData({ ...current, [field]: value });
     this.refreshAllEdges();
+    this.emit();
+  }
+
+  // --- Fallback Helpers ---
+
+  getUniqueTargetServices(epName: string): string[] {
+    const edges = this.cachedEdges[epName] || [];
+    return [...new Set(edges.map(e => e.targetName))];
+  }
+
+  getEndpointsForTarget(epName: string, targetName: string): string[] {
+    if (!targetName) return [];
+    const edges = this.cachedEdges[epName] || [];
+    return [...new Set(edges.filter(e => e.targetName === targetName).map(e => e.targetEndpoint))];
+  }
+
+  getPortsForTarget(epName: string, targetName: string, targetEndpoint: string): number[] {
+    if (!targetName || !targetEndpoint) return [];
+    const edges = this.cachedEdges[epName] || [];
+    return [...new Set(edges.filter(e => e.targetName === targetName && e.targetEndpoint === targetEndpoint).map(e => e.edgeData.port))];
+  }
+
+  onFallbackServiceChange(ep: any) {
+    const fb = ep.resilience_patterns?.fallback;
+    if (!fb) return;
+    const endpoints = this.getEndpointsForTarget(ep.name, fb.service);
+    fb.endpoint = endpoints.length > 0 ? endpoints[0] : undefined;
+    this.onFallbackEndpointChange(ep);
+  }
+
+  onFallbackEndpointChange(ep: any) {
+    const fb = ep.resilience_patterns?.fallback;
+    if (!fb) return;
+    const ports = this.getPortsForTarget(ep.name, fb.service, fb.endpoint);
+    fb.port = ports.length > 0 ? ports[0] : undefined;
     this.emit();
   }
 

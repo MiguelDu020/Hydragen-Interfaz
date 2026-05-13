@@ -120,10 +120,19 @@ export class ExporterService {
 
           // Fallback
           if (rp.fallback) {
-            csRp.fallback = {
-              fallback_response: rp.fallback.fallback_response || 'default-response',
-              trigger_on_error_rate: rp.fallback.trigger_on_error_rate || 0.5
-            };
+            const fb = rp.fallback;
+            const fallbackOutput: any = { type: fb.type || 'static' };
+            
+            if (fb.type === 'static') {
+              fallbackOutput.response_code = fb.response_code ?? 200;
+              fallbackOutput.response_payload = fb.response_payload || 'fallback-response';
+            } else if (fb.type === 'service') {
+              fallbackOutput.service = fb.service || 'fallback-service';
+              fallbackOutput.endpoint = fb.endpoint || 'fallback-endpoint';
+              fallbackOutput.port = fb.port ?? 80;
+            }
+            
+            csRp.fallback = fallbackOutput;
           }
 
           if (Object.keys(csRp).length > 0) {
