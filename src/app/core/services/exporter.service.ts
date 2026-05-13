@@ -7,20 +7,21 @@ import { HydraGenConfig, CalledService } from '../models/hydragen.model';
 export class ExporterService {
   constructor(private graphService: GraphService) { }
 
-  private normalizeAnnotations(annotations: any): Record<string, string> | null {
+  private normalizeAnnotations(annotations: any): any[] | null {
     if (!annotations) return null;
     if (Array.isArray(annotations)) {
-      const result = annotations.reduce((acc: Record<string, string>, item: any, i: number) => {
-        if (item && typeof item.key === 'string' && item.key.length > 0) {
-          acc[item.key] = String(item.value ?? '');
-        } else {
-          acc[`annotation_${i}`] = String(item?.value ?? '');
-        }
-        return acc;
-      }, {});
-      return Object.keys(result).length > 0 ? result : null;
+      return annotations
+        .filter(item => item && typeof item.name === 'string' && item.name.length > 0)
+        .map(item => ({
+          name: item.name,
+          value: String(item.value ?? '')
+        }));
     }
-    return Object.keys(annotations).length > 0 ? annotations : null;
+    // Si viene como objeto, convertir a array
+    return Object.entries(annotations).map(([name, value]) => ({
+      name,
+      value: String(value)
+    }));
   }
 
   generateConfig(): HydraGenConfig {
@@ -35,19 +36,20 @@ export class ExporterService {
     const services: any[] = nodes.map(node => {
       const nd = (node.getData() || {}) as any;
 
-      // --- Clusters ---
-      const clusters = (nd.clusters || [{ cluster: 'cluster1', replicas: 1, namespace: 'default' }])
-        .map((c: any) => {
-          const out: any = {
-            cluster: c.cluster || 'cluster1',
-            replicas: c.replicas ?? 1,
-            namespace: c.namespace || 'default'
-          };
-          if (c.node) out.node = c.node;
-          const ann = this.normalizeAnnotations(c.annotations);
-          if (ann) out.annotations = ann;
-          return out;
-        });
+      // --- Clusters (Now from Global Settings) ---
+      const serviceName = nd.name || 'unnamed-service';
+      const globalClusters = (settings.clusters || [])
+        .filter(c => c.services?.includes(serviceName))
+        .map(c => ({
+          cluster: c.name,
+          replicas: c.replicas,
+          namespace: c.namespace
+        }));
+
+      // Fallback to default if no association exists
+      const clusters = globalClusters.length > 0 
+        ? globalClusters 
+        : [{ cluster: 'cluster1', replicas: 1, namespace: 'default' }];
 
       // --- Service base ---
       const service: any = {
@@ -64,16 +66,6 @@ export class ExporterService {
       const outEdges = allEdges.filter(e => e.getSourceCellId() === node.id);
 
       // --- Endpoints ---
-      let rawEndpoints: any[] = JSON.parse(JSON.stringify(nd.endpoints || []));
-      if (rawEndpoints.length === 0) {
-        rawEndpoints = [{
-          name: 'end1',
-          execution_mode: 'sequential',
-          cpu_complexity: { execution_time: 0.001, threads: 1 },
-          network_complexity: { forward_requests: 'synchronous', response_payload_size: 0, called_services: [] }
-        }];
-      }
-
       service.endpoints = (nd.endpoints || []).map((ep: any, epIdx: number) => {
         // Filter edges that belong to this endpoint
         const epEdges = outEdges.filter(edge => {
@@ -81,9 +73,6 @@ export class ExporterService {
           const srcEp = edData.sourceEndpoint;
           return srcEp === ep.name || (!srcEp && epIdx === 0);
         });
-
-        // Resilience Patterns (from the source endpoint)
-        const rp = ep.resilience_patterns || {};
 
         // Build called_services from graph edges
         const calledServices: any[] = epEdges.map(edge => {
@@ -97,53 +86,54 @@ export class ExporterService {
             port: ed.port ?? 80,
             protocol: ed.protocol || tgtData.protocol || 'http',
             traffic_forward_ratio: ed.traffic_forward_ratio ?? 1,
-            request_payload_size: ed.request_payload_size ?? 0
+            request_payload_size: ed.request_payload_size ?? 0,
+            active_timeout: ed.active_timeout === true,
+            active_retry: ed.active_retry === true,
+            active_fallback: ed.active_fallback === true,
+            active_circuit_breaker: ed.active_circuit_breaker === true
           };
-
-          // Build Resilience Patterns for this specific call
-          const csRp: any = {};
-
-          // Retry -> exponential_backoff
-          if (rp.retry) {
-            csRp.exponential_backoff = {
-              initial: (rp.retry.backoff_ms || 500) / 1000,
-              max: (rp.retry.max_backoff_ms || 5000) / 1000,
-              multiplier: rp.retry.backoff_multiplier || 2.0,
-              max_attempts: rp.retry.max_attempts || 3
-            };
-          }
-
-          // Timeout
-          if (rp.timeout) {
-            csRp.timeout = { duration: rp.timeout.duration_ms || 5000 };
-          }
-
-          // Fallback
-          if (rp.fallback) {
-            const fb = rp.fallback;
-            const fallbackOutput: any = { type: fb.type || 'static' };
-            
-            if (fb.type === 'static') {
-              fallbackOutput.response_code = fb.response_code ?? 200;
-              fallbackOutput.response_payload = fb.response_payload || 'fallback-response';
-            } else if (fb.type === 'service') {
-              fallbackOutput.service = fb.service || 'fallback-service';
-              fallbackOutput.endpoint = fb.endpoint || 'fallback-endpoint';
-              fallbackOutput.port = fb.port ?? 80;
-            }
-            
-            csRp.fallback = fallbackOutput;
-          }
-
-          if (Object.keys(csRp).length > 0) {
-            cs.resilience_patterns = csRp;
-          }
 
           return cs;
         });
 
+        // Build Resilience Patterns for the ENDPOINT
+        const rp = ep.resilience_patterns || {};
+        const outputRp: any = {};
+
+        if (rp.timeout) {
+          outputRp.timeout = { duration: rp.timeout.duration_ms };
+        }
+        if (rp.retry) {
+          outputRp.exponential_backoff = {
+            initial: (rp.retry.backoff_ms || 100) / 1000,
+            max: (rp.retry.max_backoff_ms || 5000) / 1000,
+            multiplier: rp.retry.backoff_multiplier || 2.0,
+            max_attempts: rp.retry.max_attempts || 3
+          };
+        }
+        if (rp.fallback) {
+          const fb = rp.fallback;
+          outputRp.fallback = {
+            type: fb.type || 'static',
+            ...(fb.type === 'static' ? {
+              response_code: fb.response_code ?? 200,
+              response_payload: fb.response_payload || 'fallback-response'
+            } : {
+              service: fb.service || 'fallback-service',
+              endpoint: fb.endpoint || 'fallback-endpoint',
+              port: fb.port ?? 80
+            })
+          };
+        }
+        if (rp.circuit_breaker) {
+          outputRp.circuit_breaker = {
+            timeout: rp.circuit_breaker.timeout,
+            retry_timer: rp.circuit_breaker.retry_timer
+          };
+        }
+
         // Build endpoint output
-        return {
+        const endpointOutput: any = {
           name: ep.name || `end${epIdx + 1}`,
           execution_mode: ep.execution_mode || 'sequential',
           cpu_complexity: {
@@ -156,6 +146,12 @@ export class ExporterService {
             called_services: calledServices
           }
         };
+
+        if (Object.keys(outputRp).length > 0) {
+          endpointOutput.resilience_patterns = outputRp;
+        }
+
+        return endpointOutput;
       });
 
       return service;

@@ -50,7 +50,11 @@
             type="text"
             [(ngModel)]="hydragenPath"
             placeholder="/home/usuario/hydragen"
+            list="pathHistory"
           />
+          <datalist id="pathHistory">
+            <option *ngFor="let p of hydragenPaths" [value]="p"></option>
+          </datalist>
           <span class="field-hint">Ruta absoluta al directorio raíz de HydraGen en el servidor Linux.</span>
         </div>
 

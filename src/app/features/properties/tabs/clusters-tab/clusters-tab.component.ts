@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { GraphService } from '../../../../core/services/graph.service';
 
 @Component({
   selector: 'app-clusters-tab',
@@ -16,11 +17,11 @@ import { FormsModule } from '@angular/forms';
         <div class="field-row">
           <div class="field">
             <label>Nombre</label>
-            <input type="text" [(ngModel)]="cluster.cluster" (ngModelChange)="emit()" placeholder="cluster1" />
+            <input type="text" [(ngModel)]="cluster.cluster" (ngModelChange)="emit()" placeholder="cluster1" list="existing-clusters" />
           </div>
           <div class="field">
             <label>Namespace</label>
-            <input type="text" [(ngModel)]="cluster.namespace" (ngModelChange)="emit()" placeholder="default" />
+            <input type="text" [(ngModel)]="cluster.namespace" (ngModelChange)="emit()" placeholder="default" list="existing-namespaces" />
           </div>
         </div>
         <div class="field-row">
@@ -36,6 +37,14 @@ import { FormsModule } from '@angular/forms';
       </div>
 
       <button class="btn-add" (click)="addCluster()">+ Agregar Cluster</button>
+
+      <!-- Datalists for suggestions -->
+      <datalist id="existing-clusters">
+        <option *ngFor="let name of existingClusters" [value]="name"></option>
+      </datalist>
+      <datalist id="existing-namespaces">
+        <option *ngFor="let ns of existingNamespaces" [value]="ns"></option>
+      </datalist>
     </div>
   `,
   styles: [`
@@ -72,16 +81,39 @@ export class ClustersTabComponent implements OnChanges {
   @Output() dataChange = new EventEmitter<any>();
 
   clusters: any[] = [];
+  existingClusters: string[] = [];
+  existingNamespaces: string[] = [];
+
+  constructor(private graphService: GraphService) {}
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
       const newClusters = this.nodeData.clusters || [{ cluster: 'cluster1', replicas: 1, namespace: 'default', node: '' }];
-      // Solo actualizar si la longitud cambió o si es la primera carga.
-      // Si solo cambiaron valores internos, ngModel se encarga y evitamos reasignar el array para no perder foco.
       if (this.clusters.length !== newClusters.length || JSON.stringify(this.clusters) !== JSON.stringify(newClusters)) {
         this.clusters = JSON.parse(JSON.stringify(newClusters));
       }
+      this.refreshSuggestions();
     }
+  }
+
+  refreshSuggestions() {
+    const graph = this.graphService.getGraph();
+    if (!graph) return;
+
+    const clusterSet = new Set<string>();
+    const namespaceSet = new Set<string>();
+
+    graph.getNodes().forEach(node => {
+      const data = node.getData() || {};
+      const nodeClusters = data.clusters || [];
+      nodeClusters.forEach((c: any) => {
+        if (c.cluster) clusterSet.add(c.cluster);
+        if (c.namespace) namespaceSet.add(c.namespace);
+      });
+    });
+
+    this.existingClusters = Array.from(clusterSet).sort();
+    this.existingNamespaces = Array.from(namespaceSet).sort();
   }
 
   addCluster() {

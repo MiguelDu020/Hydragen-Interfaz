@@ -6,10 +6,18 @@ export interface HydraGenConfig {
   services: Service[];
 }
 
+export interface ClusterDefinition {
+  name: string;
+  namespace: string;
+  replicas: number;
+  services: string[]; // List of service names
+}
+
 export interface GlobalSettings {
   logging: boolean;
   development: boolean;
   base_image: string;
+  clusters?: ClusterDefinition[];
 }
 
 export interface ClusterLatency {
@@ -41,7 +49,7 @@ export interface ClusterConfig {
 }
 
 export interface Annotation {
-  key: string;
+  name: string;
   value: string;
 }
 
@@ -84,5 +92,6 @@ export interface CalledService {
   active_timeout?: boolean;
   active_retry?: boolean;
   active_fallback?: boolean;
+  active_circuit_breaker?: boolean;
   resilience_patterns?: ResiliencePatterns;
 }

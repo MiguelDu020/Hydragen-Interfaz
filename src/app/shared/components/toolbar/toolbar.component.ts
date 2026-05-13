@@ -153,7 +153,7 @@ export class ToolbarComponent {
     private exporterService: ExporterService,
     private graphService: GraphService,
     private themeService: ThemeService
-  ) {}
+  ) { }
 
   get isDark(): boolean {
     return this.themeService.getCurrentTheme() === 'dark';
@@ -198,7 +198,7 @@ export class ToolbarComponent {
 
   importJson(event: Event) {
     const input = event.target as HTMLInputElement;
-    const file  = input.files?.[0];
+    const file = input.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -215,12 +215,19 @@ export class ToolbarComponent {
 
   loadExample() {
     const example: HydraGenConfig = {
-      settings: { logging: false, development: false, base_image: '' },
+      settings: { 
+        logging: true, 
+        development: true, 
+        base_image: 'ubuntu:20.04',
+        clusters: [
+          { name: 'cluster1', namespace: 'hydragen', replicas: 2, services: ['api-gateway', 'service-backend'] }
+        ]
+      },
       services: [
         {
           name: 'api-gateway',
           protocol: 'http',
-          clusters: [{ cluster: 'cluster1', replicas: 2, namespace: 'hydragen' }],
+          clusters: [], // Local clusters ignored, uses global ones
           resources: { limits: { cpu: '500m', memory: '512M' }, requests: { cpu: '250m', memory: '256M' } },
           processes: 1,
           readiness_probe: 2,
@@ -236,19 +243,20 @@ export class ToolbarComponent {
                 endpoint: 'end1',
                 port: 80, protocol: 'http',
                 traffic_forward_ratio: 1, request_payload_size: 128,
-                active_timeout: true, active_retry: true, active_fallback: false
+                active_timeout: true, active_retry: true, active_fallback: false,
+                active_circuit_breaker: true
               }]
             },
             resilience_patterns: {
               timeout: { duration_ms: 3000 },
-              retry:   { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 }
+              retry: { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 }
             }
           }]
         },
         {
           name: 'service-backend',
           protocol: 'http',
-          clusters: [{ cluster: 'cluster1', replicas: 1, namespace: 'hydragen' }],
+          clusters: [], // Local clusters ignored, uses global ones
           resources: { limits: { cpu: '300m', memory: '256M' }, requests: { cpu: '150m', memory: '128M' } },
           processes: 1,
           readiness_probe: 2,

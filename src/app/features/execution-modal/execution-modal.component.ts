@@ -42,7 +42,8 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
   @ViewChild('logsPanel') logsPanel!: ElementRef<HTMLDivElement>;
 
   // ── Config view ────────────────────────────────────────────────────────────
-  hydragenPath = '/home/user/hydragen';
+  hydragenPath = '';
+  hydragenPaths: string[] = [];
   sshPassword = '';
   sudoPassword = '';
   verifyBackend = true;
@@ -83,7 +84,34 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
     private ngZone: NgZone
   ) { }
 
-  ngOnInit(): void { }
+  ngOnInit(): void {
+    this.loadPaths();
+  }
+
+  private loadPaths(): void {
+    try {
+      const saved = localStorage.getItem('hydragen_paths');
+      if (saved) {
+        this.hydragenPaths = JSON.parse(saved);
+        if (this.hydragenPaths.length > 0) {
+          this.hydragenPath = this.hydragenPaths[0]; // Set the last successful one as default
+        }
+      } else {
+        this.hydragenPath = '/home/user/hydragen'; // Default fallback
+      }
+    } catch (e) {
+      console.warn('Error loading paths from localStorage', e);
+      this.hydragenPath = '/home/user/hydragen';
+    }
+  }
+
+  private saveSuccessfulPath(path: string): void {
+    if (!path) return;
+    // Remove if already exists to move it to the front (most recent)
+    const filtered = this.hydragenPaths.filter(p => p !== path);
+    this.hydragenPaths = [path, ...filtered].slice(0, 5); // Keep last 5
+    localStorage.setItem('hydragen_paths', JSON.stringify(this.hydragenPaths));
+  }
 
   ngOnDestroy(): void {
     this.cleanup();
@@ -327,6 +355,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
 
             if (status.status === 'completed') {
               this.jobStatus = 'completed';
+              this.saveSuccessfulPath(this.hydragenPath);
               this.steps.forEach((s) => (s.status = 'done'));
               this.timerSub?.unsubscribe();
             } else if (status.status === 'failed') {

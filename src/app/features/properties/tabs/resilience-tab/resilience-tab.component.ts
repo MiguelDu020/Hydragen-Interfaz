@@ -15,6 +15,7 @@ import { CommonModule } from '@angular/common';
             <th>Timeout</th>
             <th>Retry</th>
             <th>Fallback</th>
+            <th>C. Breaker</th>
           </tr>
         </thead>
         <tbody>
@@ -23,6 +24,7 @@ import { CommonModule } from '@angular/common';
             <td><span [class]="row.timeout ? 'badge on' : 'badge off'">{{ row.timeout || '✗' }}</span></td>
             <td><span [class]="row.retry   ? 'badge on' : 'badge off'">{{ row.retry   || '✗' }}</span></td>
             <td><span [class]="row.fallback? 'badge on' : 'badge off'">{{ row.fallback|| '✗' }}</span></td>
+            <td><span [class]="row.cb      ? 'badge on' : 'badge off'">{{ row.cb      || '✗' }}</span></td>
           </tr>
         </tbody>
       </table>
@@ -67,7 +69,7 @@ export class ResilienceTabComponent implements OnChanges {
   @Input() nodeData: any = {};
   @Output() goToEndpoints = new EventEmitter<void>();
 
-  rows: Array<{ name: string; timeout: string; retry: string; fallback: string }> = [];
+  rows: Array<{ name: string; timeout: string; retry: string; fallback: string; cb: string }> = [];
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
@@ -77,7 +79,8 @@ export class ResilienceTabComponent implements OnChanges {
           name:     ep.name || '?',
           timeout:  rp.timeout  ? `✓ ${rp.timeout.duration_ms}ms`                                         : '',
           retry:    rp.retry    ? `✓ ${rp.retry.max_attempts} intentos`                                    : '',
-          fallback: rp.fallback ? `✓ ${rp.fallback.type === 'static' ? 'static:' + rp.fallback.response_code : 'svc:' + rp.fallback.service}` : ''
+          fallback: rp.fallback ? `✓ ${rp.fallback.type === 'static' ? 'static:' + rp.fallback.response_code : 'svc:' + rp.fallback.service}` : '',
+          cb:       rp.circuit_breaker ? `✓ TO:${rp.circuit_breaker.timeout}s` : ''
         };
       });
     }

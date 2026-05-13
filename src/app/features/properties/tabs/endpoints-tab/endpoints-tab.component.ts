@@ -20,6 +20,7 @@ import { GraphService } from '../../../../core/services/graph.service';
             <span class="badge to" *ngIf="ep.resilience_patterns?.timeout">TO</span>
             <span class="badge rt" *ngIf="ep.resilience_patterns?.retry">RT</span>
             <span class="badge fb" *ngIf="ep.resilience_patterns?.fallback">FB</span>
+            <span class="badge cb" *ngIf="ep.resilience_patterns?.circuit_breaker">CB</span>
           </div>
           <button class="btn-remove-ep" (click)="removeEndpoint(ei, $event)" [disabled]="endpoints.length <= 1" title="Eliminar endpoint">✕</button>
         </div>
@@ -110,7 +111,7 @@ import { GraphService } from '../../../../core/services/graph.service';
                 </div>
               </div>
               <!-- Activation flags — only show if pattern is configured -->
-              <div class="activation-flags" *ngIf="ep.resilience_patterns?.timeout || ep.resilience_patterns?.retry || ep.resilience_patterns?.fallback">
+              <div class="activation-flags" *ngIf="ep.resilience_patterns?.timeout || ep.resilience_patterns?.retry || ep.resilience_patterns?.fallback || ep.resilience_patterns?.circuit_breaker">
                 <label class="flag-toggle" *ngIf="ep.resilience_patterns?.timeout">
                   <input type="checkbox" [ngModel]="row.edgeData.active_timeout" (ngModelChange)="updateEdge(row.edge, 'active_timeout', $event)" />
                   <span class="to-label">Activar Timeout</span>
@@ -122,6 +123,10 @@ import { GraphService } from '../../../../core/services/graph.service';
                 <label class="flag-toggle" *ngIf="ep.resilience_patterns?.fallback">
                   <input type="checkbox" [ngModel]="row.edgeData.active_fallback" (ngModelChange)="updateEdge(row.edge, 'active_fallback', $event)" />
                   <span class="fb-label">Activar Fallback</span>
+                </label>
+                <label class="flag-toggle" *ngIf="ep.resilience_patterns?.circuit_breaker">
+                  <input type="checkbox" [ngModel]="row.edgeData.active_circuit_breaker" (ngModelChange)="updateEdge(row.edge, 'active_circuit_breaker', $event)" />
+                  <span class="cb-label">Activar Circuit Breaker</span>
                 </label>
               </div>
             </div>
@@ -233,6 +238,26 @@ import { GraphService } from '../../../../core/services/graph.service';
             </div>
           </div>
 
+          <!-- CIRCUIT BREAKER -->
+          <div class="pattern-block">
+            <label class="pattern-toggle">
+              <input type="checkbox" [checked]="!!ep.resilience_patterns?.circuit_breaker" (change)="togglePattern(ep, 'circuit_breaker', $event)" />
+              <span class="cb-label">Circuit Breaker</span>
+            </label>
+            <div class="pattern-fields" *ngIf="ep.resilience_patterns?.circuit_breaker">
+              <div class="field-row">
+                <div class="field">
+                  <label>Timeout (s)</label>
+                  <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.circuit_breaker!.timeout" (ngModelChange)="emit()" />
+                </div>
+                <div class="field">
+                  <label>Retry Timer (s)</label>
+                  <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.circuit_breaker!.retry_timer" (ngModelChange)="emit()" />
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div><!-- end ep-body -->
       </div><!-- end endpoint-item -->
 
@@ -265,6 +290,7 @@ import { GraphService } from '../../../../core/services/graph.service';
       &.to { background: var(--bg-accent-subtle); color: var(--to-color); border: 1px solid var(--to-color); }
       &.rt { background: var(--bg-success-subtle); color: var(--rt-color); border: 1px solid var(--rt-color); }
       &.fb { background: var(--bg-warning-subtle); color: var(--fb-color); border: 1px solid var(--fb-color); }
+      &.cb { background: rgba(156, 39, 176, 0.1); color: #ce93d8; border: 1px solid #ce93d8; }
     }
 
     .btn-remove-ep {
@@ -315,6 +341,7 @@ import { GraphService } from '../../../../core/services/graph.service';
       .to-label { color: var(--to-color); }
       .rt-label { color: var(--rt-color); }
       .fb-label { color: var(--fb-color); }
+      .cb-label { color: #ce93d8; }
     }
 
     .pattern-block {
@@ -327,6 +354,7 @@ import { GraphService } from '../../../../core/services/graph.service';
       .to-label { color: var(--to-color); }
       .rt-label { color: var(--rt-color); }
       .fb-label { color: var(--fb-color); }
+      .cb-label { color: #ce93d8; }
     }
     .pattern-fields {
       padding: 10px; background: var(--bg-primary);
@@ -400,13 +428,14 @@ export class EndpointsTabComponent implements OnChanges {
     this.emit();
   }
 
-  togglePattern(ep: any, pattern: 'timeout' | 'retry' | 'fallback', event: Event) {
+  togglePattern(ep: any, pattern: 'timeout' | 'retry' | 'fallback' | 'circuit_breaker', event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
     if (!ep.resilience_patterns) ep.resilience_patterns = {};
     if (checked) {
       if (pattern === 'timeout') ep.resilience_patterns.timeout = { duration_ms: 5000 };
       if (pattern === 'retry') ep.resilience_patterns.retry = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 };
       if (pattern === 'fallback') ep.resilience_patterns.fallback = { type: 'static', response_code: 200, response_payload: 'fallback-response' };
+      if (pattern === 'circuit_breaker') ep.resilience_patterns.circuit_breaker = { timeout: 5, retry_timer: 10 };
     } else {
       delete ep.resilience_patterns[pattern];
       if (Object.keys(ep.resilience_patterns).length === 0) delete ep.resilience_patterns;
@@ -416,8 +445,7 @@ export class EndpointsTabComponent implements OnChanges {
 
 
   updateEdge(edge: Edge, field: string, value: any) {
-    const current = edge.getData() || {};
-    edge.setData({ ...current, [field]: value });
+    edge.prop(`data/${field}`, value);
     this.refreshAllEdges();
     this.emit();
   }

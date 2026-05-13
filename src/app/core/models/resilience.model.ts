@@ -4,6 +4,12 @@ export interface ResiliencePatterns {
   timeout?: TimeoutConfig;
   retry?: RetryConfig;
   fallback?: FallbackConfig;
+  circuit_breaker?: CircuitBreakerConfig;
+}
+
+export interface CircuitBreakerConfig {
+  timeout: number;
+  retry_timer: number;
 }
 
 export interface TimeoutConfig {
