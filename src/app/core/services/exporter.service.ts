@@ -36,20 +36,21 @@ export class ExporterService {
     const services: any[] = nodes.map(node => {
       const nd = (node.getData() || {}) as any;
 
-      // --- Clusters (Now from Global Settings) ---
-      const serviceName = nd.name || 'unnamed-service';
-      const globalClusters = (settings.clusters || [])
-        .filter(c => c.services?.includes(serviceName))
-        .map(c => ({
-          cluster: c.name,
-          replicas: c.replicas,
-          namespace: c.namespace
-        }));
+      // --- Clusters (Replicas are now per-service) ---
+      const clusters = (nd.clusters || []).map((c: any) => {
+        // Try to find global definition for namespace fallback
+        const globalDef = (settings.clusters || []).find((gc: any) => gc.name === c.cluster);
+        return {
+          cluster: c.cluster || 'cluster1',
+          replicas: nd.replicas ?? 1,
+          namespace: c.namespace || globalDef?.namespace || 'default'
+        };
+      });
 
-      // Fallback to default if no association exists
-      const clusters = globalClusters.length > 0 
-        ? globalClusters 
-        : [{ cluster: 'cluster1', replicas: 1, namespace: 'default' }];
+      // Fallback if empty
+      if (clusters.length === 0) {
+        clusters.push({ cluster: 'cluster1', replicas: 1, namespace: 'default' });
+      }
 
       // --- Service base ---
       const service: any = {
@@ -87,17 +88,14 @@ export class ExporterService {
             protocol: ed.protocol || tgtData.protocol || 'http',
             traffic_forward_ratio: ed.traffic_forward_ratio ?? 1,
             request_payload_size: ed.request_payload_size ?? 0,
-            active_timeout: ed.active_timeout === true,
-            active_retry: ed.active_retry === true,
-            active_fallback: ed.active_fallback === true,
             active_circuit_breaker: ed.active_circuit_breaker === true
           };
 
           return cs;
         });
 
-        // Build Resilience Patterns for the ENDPOINT
-        const rp = ep.resilience_patterns || {};
+        // Build Resilience Parameters for the ENDPOINT
+        const rp = (ep as any).resilience_parameters || (ep as any).resilience_patterns || {};
         const outputRp: any = {};
 
         if (rp.timeout) {
@@ -148,7 +146,7 @@ export class ExporterService {
         };
 
         if (Object.keys(outputRp).length > 0) {
-          endpointOutput.resilience_patterns = outputRp;
+          endpointOutput.resilience_parameters = outputRp;
         }
 
         return endpointOutput;

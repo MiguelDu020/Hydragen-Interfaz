@@ -24,13 +24,17 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
       </div>
       <div class="field-row">
         <div class="field">
+          <label>Réplicas</label>
+          <input formControlName="replicas" type="number" min="1" />
+        </div>
+        <div class="field">
           <label>Procesos</label>
           <input formControlName="processes" type="number" min="0" />
         </div>
-        <div class="field">
-          <label>Readiness Probe (s)</label>
-          <input formControlName="readiness_probe" type="number" min="1" />
-        </div>
+      </div>
+      <div class="field">
+        <label>Readiness Probe (s)</label>
+        <input formControlName="readiness_probe" type="number" min="1" />
       </div>
       <div class="field">
         <label>Base Image</label>
@@ -73,6 +77,7 @@ export class GeneralTabComponent implements OnChanges {
     this.form = this.fb.group({
       name:           ['', [Validators.required, Validators.pattern(/^[a-z0-9-]+$/)]],
       protocol:       ['http'],
+      replicas:       [1, [Validators.required, Validators.min(1)]],
       processes:      [1, [Validators.min(0)]],
       readiness_probe:[2, [Validators.min(1)]],
       base_image:     ['']
@@ -87,6 +92,7 @@ export class GeneralTabComponent implements OnChanges {
       this.form.patchValue({
         name:           this.nodeData.name           || '',
         protocol:       this.nodeData.protocol       || 'http',
+        replicas:       this.nodeData.replicas       ?? 1,
         processes:      this.nodeData.processes      ?? 1,
         readiness_probe:this.nodeData.readiness_probe ?? 2,
         base_image:     this.nodeData.base_image     || ''

@@ -165,10 +165,6 @@ type PanelMode = 'node' | 'edge' | 'global';
                   <label>Namespace</label>
                   <input type="text" [(ngModel)]="cls.namespace" placeholder="default" />
                 </div>
-                <div class="field">
-                  <label>Réplicas</label>
-                  <input type="number" min="1" [(ngModel)]="cls.replicas" />
-                </div>
               </div>
 
               <div class="services-assoc">
@@ -517,7 +513,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
   addGlobalCluster() {
     if (!this.settings.clusters) this.settings.clusters = [];
-    this.settings.clusters.push({ name: 'cluster1', namespace: 'default', replicas: 1, services: [] });
+    this.settings.clusters.push({ name: 'cluster1', namespace: 'default', services: [] });
     this.saveSettings();
   }
 

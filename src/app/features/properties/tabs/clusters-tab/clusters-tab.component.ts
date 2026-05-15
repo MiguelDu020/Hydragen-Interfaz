@@ -26,10 +26,6 @@ import { GraphService } from '../../../../core/services/graph.service';
         </div>
         <div class="field-row">
           <div class="field">
-            <label>Réplicas</label>
-            <input type="number" min="1" [(ngModel)]="cluster.replicas" (ngModelChange)="emit()" />
-          </div>
-          <div class="field">
             <label>Nodo (opcional)</label>
             <input type="text" [(ngModel)]="cluster.node" (ngModelChange)="emit()" placeholder="" />
           </div>
@@ -88,7 +84,7 @@ export class ClustersTabComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
-      const newClusters = this.nodeData.clusters || [{ cluster: 'cluster1', replicas: 1, namespace: 'default', node: '' }];
+      const newClusters = this.nodeData.clusters || [{ cluster: 'cluster1', namespace: 'default', node: '' }];
       if (this.clusters.length !== newClusters.length || JSON.stringify(this.clusters) !== JSON.stringify(newClusters)) {
         this.clusters = JSON.parse(JSON.stringify(newClusters));
       }
@@ -117,7 +113,7 @@ export class ClustersTabComponent implements OnChanges {
   }
 
   addCluster() {
-    this.clusters = [...this.clusters, { cluster: 'cluster1', replicas: 1, namespace: 'default', node: '' }];
+    this.clusters = [...this.clusters, { cluster: 'cluster1', namespace: 'default', node: '' }];
     this.emit();
   }
 

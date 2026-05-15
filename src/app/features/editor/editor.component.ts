@@ -7,7 +7,7 @@ import { GraphService } from '../../core/services/graph.service';
 
 /** Trunca texto y añade '…' para que nunca desborde la caja en SVG. */
 function trunc(text: string, maxChars: number): string {
-  return text.length > maxChars ? text.substring(0, maxChars - 1) + '\u2026' : text;
+  return text.length > maxChars ? text.substring(0, maxChars - 1) + '...' : text;
 }
 
 const NODE_W = 260;
@@ -208,8 +208,8 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
   private createServiceNode(x: number, y: number) {
     const name = `service-${++this.serviceCounter}`;
     this.createServiceNodeWithData(x, y, {
-      rawType: 'service', name, protocol: 'http',
-      clusters: [{ cluster: 'cluster1', replicas: 1, namespace: 'default' }],
+      rawType: 'service', name, protocol: 'http', replicas: 1,
+      clusters: [{ cluster: 'cluster1', namespace: 'default' }],
       resources: { limits: { cpu: '1000m', memory: '1024M' }, requests: { cpu: '500m', memory: '256M' } },
       processes: 1, readiness_probe: 2, logging: false, development: false, base_image: '',
       endpoints: [{
@@ -227,7 +227,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
     const cpuLim = data.resources?.limits?.cpu || '1000m';
     const memReq = data.resources?.requests?.memory || '256M';
     const memLim = data.resources?.limits?.memory || '1024M';
-    const repl = data.clusters?.[0]?.replicas ?? 1;
+    const repl = data.replicas ?? 1;
     const clust = data.clusters?.[0]?.cluster || 'cluster1';
     const proto = (data.protocol || 'http').toUpperCase();
 
@@ -242,7 +242,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
       x, y, width: NODE_W, height: NODE_H, shape: 'service-node', data,
       attrs: {
         divider: { x1: 0, y1: 42, x2: NODE_W, y2: 42, stroke: 'var(--node-divider)', strokeWidth: 1 },
-        icon: { text: '\u25c9', fill: 'var(--text-muted)', fontSize: 14, x: 14, y: 26 },
+        icon: { text: '(o)', fill: 'var(--text-muted)', fontSize: 14, x: 14, y: 26 },
         title:         { text: titleTxt, fill: 'var(--node-text)', fontSize: 13, fontWeight: 700, x: 34, y: 26 },
         badgeBg:       { fill: 'var(--node-badge-bg)', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
         badge:         { text: proto, fill: 'var(--node-badge-text)', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },

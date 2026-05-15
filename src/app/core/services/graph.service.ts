@@ -5,7 +5,7 @@ import { GlobalSettings, HydraGenConfig, ClusterLatency } from '../models/hydrag
 
 /** Trunca texto — garantiza que no desborda la caja SVG */
 function trunc(text: string, maxChars: number): string {
-  return text.length > maxChars ? text.substring(0, maxChars - 1) + '\u2026' : text;
+  return text.length > maxChars ? text.substring(0, maxChars - 1) + '...' : text;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -78,9 +78,10 @@ export class GraphService {
     const endpoints: any[] = data.endpoints || [];
 
     const badges: string[] = [];
-    if (endpoints.some((ep: any) => ep.resilience_patterns?.timeout)) badges.push('TO');
-    if (endpoints.some((ep: any) => ep.resilience_patterns?.retry)) badges.push('RT');
-    if (endpoints.some((ep: any) => ep.resilience_patterns?.fallback)) badges.push('FB');
+    if (endpoints.some((ep: any) => ep.resilience_parameters?.timeout)) badges.push('TO');
+    if (endpoints.some((ep: any) => ep.resilience_parameters?.retry)) badges.push('RT');
+    if (endpoints.some((ep: any) => ep.resilience_parameters?.fallback)) badges.push('FB');
+    if (endpoints.some((ep: any) => ep.resilience_parameters?.circuit_breaker)) badges.push('CB');
 
     const name = data.name || 'Service';
     const protocol = (data.protocol || 'http').toUpperCase();
@@ -88,7 +89,7 @@ export class GraphService {
     const cpuLim = data.resources?.limits?.cpu || '1000m';
     const memReq = data.resources?.requests?.memory || '256M';
     const memLim = data.resources?.limits?.memory || '1024M';
-    const replicas = data.clusters?.[0]?.replicas ?? 1;
+    const replicas = data.replicas ?? 1;
     const cluster = data.clusters?.[0]?.cluster || 'cluster1';
 
     try { node.attr('title/text', trunc(name, 20)); node.attr('title/fill', 'var(--node-text)'); node.attr('title/fontSize', 13); node.attr('title/fontWeight', 700); } catch (_) { }
@@ -116,13 +117,15 @@ export class GraphService {
       const y = baseY + Math.floor(index / 3) * spacingY;
       const endpoints = (service.endpoints || []).map(ep => {
         const epData = { ...ep };
-        // Si el endpoint no tiene patrones pero los llamados sí, los reconstruimos
-        if (!epData.resilience_patterns) {
+        const rpSource = (epData as any).resilience_parameters || (epData as any).resilience_patterns;
+        
+        // If the endpoint doesn't have patterns but the called services do (legacy), reconstruct them
+        if (!rpSource) {
           const calledWithPatterns = (ep.network_complexity?.called_services || [])
-            .find(c => c.resilience_patterns);
+            .find(c => (c as any).resilience_patterns || (c as any).resilience_parameters);
 
-          if (calledWithPatterns && calledWithPatterns.resilience_patterns) {
-            const rp = calledWithPatterns.resilience_patterns as any;
+          if (calledWithPatterns) {
+            const rp = ((calledWithPatterns as any).resilience_patterns || (calledWithPatterns as any).resilience_parameters) as any;
             const newRp: any = {};
             if (rp.timeout) newRp.timeout = { ...rp.timeout };
             if (rp.exponential_backoff) {
@@ -134,16 +137,19 @@ export class GraphService {
               };
             }
             if (rp.fallback) newRp.fallback = { ...rp.fallback };
-            epData.resilience_patterns = newRp;
+            epData.resilience_parameters = newRp;
           }
+        } else {
+          epData.resilience_parameters = rpSource;
         }
         return epData;
       });
 
       const badges: string[] = [];
-      if (endpoints.some((ep: any) => ep.resilience_patterns?.timeout)) badges.push('TO');
-      if (endpoints.some((ep: any) => ep.resilience_patterns?.retry)) badges.push('RT');
-      if (endpoints.some((ep: any) => ep.resilience_patterns?.fallback)) badges.push('FB');
+      if (endpoints.some((ep: any) => ep.resilience_parameters?.timeout)) badges.push('TO');
+      if (endpoints.some((ep: any) => ep.resilience_parameters?.retry)) badges.push('RT');
+      if (endpoints.some((ep: any) => ep.resilience_parameters?.fallback)) badges.push('FB');
+      if (endpoints.some((ep: any) => ep.resilience_parameters?.circuit_breaker)) badges.push('CB');
 
       const node = this.graph!.addNode({
         x, y, width: 260, height: 130, shape: 'service-node',
@@ -155,17 +161,18 @@ export class GraphService {
           resources: service.resources,
           processes: service.processes,
           readiness_probe: service.readiness_probe,
+          replicas: (service as any).replicas ?? (service.clusters?.[0] as any)?.replicas ?? 1,
           base_image: service.base_image || '',
           endpoints
         },
         attrs: {
           divider: { x1: 0, y1: 42, x2: 260, y2: 42, stroke: 'var(--node-divider)', strokeWidth: 1 },
-          icon: { text: '\u25c9', fill: 'var(--text-muted)', fontSize: 14, x: 14, y: 26 },
+          icon: { text: '(o)', fill: 'var(--text-muted)', fontSize: 14, x: 14, y: 26 },
           title: { text: trunc(service.name, 20), fill: 'var(--node-text)', fontSize: 13, fontWeight: 700, x: 34, y: 26 },
           badgeBg: { fill: 'var(--node-badge-bg)', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
           badge: { text: (service.protocol || 'http').toUpperCase(), fill: 'var(--node-badge-text)', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },
           resources: { text: trunc(`CPU ${service.resources?.requests?.cpu || '500m'}/${service.resources?.limits?.cpu || '1000m'}  MEM ${service.resources?.requests?.memory || '256M'}/${service.resources?.limits?.memory || '1024M'}`, 36), fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 68, fontFamily: 'monospace' },
-          cluster: { text: trunc(`Replicas ${service.clusters?.[0]?.replicas ?? 1}  Cluster ${service.clusters?.[0]?.cluster || 'cluster1'}`, 34), fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 86, fontFamily: 'monospace' },
+          cluster: { text: trunc(`Replicas ${(service as any).replicas ?? 1}  Cluster ${service.clusters?.[0]?.cluster || 'cluster1'}`, 34), fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 86, fontFamily: 'monospace' },
           patternBadges: { text: badges.join('  '), fill: 'var(--accent-blue)', fontSize: 10, fontWeight: 700, x: 14, y: 110, fontFamily: 'monospace' }
         },
         ports: {
@@ -200,10 +207,10 @@ export class GraphService {
                 protocol: called.protocol,
                 traffic_forward_ratio: called.traffic_forward_ratio,
                 request_payload_size: called.request_payload_size,
-                active_circuit_breaker: called.active_circuit_breaker || !!endpoint.resilience_patterns?.circuit_breaker,
-                active_timeout: called.active_timeout || !!called.resilience_patterns?.timeout,
-                active_retry: called.active_retry || !!(called.resilience_patterns as any)?.exponential_backoff,
-                active_fallback: called.active_fallback || !!called.resilience_patterns?.fallback
+                active_circuit_breaker: called.active_circuit_breaker || !!(endpoint as any).resilience_parameters?.circuit_breaker || !!(endpoint as any).resilience_patterns?.circuit_breaker,
+                active_timeout: (called as any).active_timeout || !!(called as any).resilience_parameters?.timeout || !!(called as any).resilience_patterns?.timeout,
+                active_retry: (called as any).active_retry || !!((called as any).resilience_parameters as any)?.exponential_backoff || !!((called as any).resilience_patterns as any)?.exponential_backoff,
+                active_fallback: (called as any).active_fallback || !!(called as any).resilience_parameters?.fallback || !!(called as any).resilience_patterns?.fallback
               }
             });
           }

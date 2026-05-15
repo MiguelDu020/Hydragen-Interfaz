@@ -14,15 +14,15 @@ import { GraphService } from '../../../../core/services/graph.service';
       <div class="endpoint-item" *ngFor="let ep of endpoints; let ei = index; trackBy: trackByEp">
         <!-- Accordion Header -->
         <div class="ep-header" (click)="toggleExpand(ei)">
-          <span class="ep-arrow">{{ expandedIdx === ei ? '▼' : '▶' }}</span>
+          <span class="ep-arrow">{{ expandedIdx === ei ? 'V' : '>' }}</span>
           <span class="ep-name">{{ ep.name || 'endpoint' }}</span>
           <div class="ep-badges">
-            <span class="badge to" *ngIf="ep.resilience_patterns?.timeout">TO</span>
-            <span class="badge rt" *ngIf="ep.resilience_patterns?.retry">RT</span>
-            <span class="badge fb" *ngIf="ep.resilience_patterns?.fallback">FB</span>
-            <span class="badge cb" *ngIf="ep.resilience_patterns?.circuit_breaker">CB</span>
+            <span class="badge to" *ngIf="ep.resilience_parameters?.timeout">TO</span>
+            <span class="badge rt" *ngIf="ep.resilience_parameters?.retry">RT</span>
+            <span class="badge fb" *ngIf="ep.resilience_parameters?.fallback">FB</span>
+            <span class="badge cb" *ngIf="ep.resilience_parameters?.circuit_breaker">CB</span>
           </div>
-          <button class="btn-remove-ep" (click)="removeEndpoint(ei, $event)" [disabled]="endpoints.length <= 1" title="Eliminar endpoint">✕</button>
+          <button class="btn-remove-ep" (click)="removeEndpoint(ei, $event)" [disabled]="endpoints.length <= 1" title="Eliminar endpoint">X</button>
         </div>
 
         <!-- Accordion Body -->
@@ -85,7 +85,7 @@ import { GraphService } from '../../../../core/services/graph.service';
             </div>
             <div class="edge-row" *ngFor="let row of edgeRows; trackBy: trackByEdge">
               <div class="edge-target">
-                <span class="tag">→</span>
+                <span class="tag">-></span>
                 <strong>{{ row.targetName }}</strong>
                 <span class="tag">{{ row.targetEndpoint }}</span>
               </div>
@@ -110,21 +110,25 @@ import { GraphService } from '../../../../core/services/graph.service';
                   <input type="number" min="0" [ngModel]="row.edgeData.request_payload_size" (ngModelChange)="updateEdge(row.edge, 'request_payload_size', +$event)" />
                 </div>
               </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label>Endpoint Origen</label>
+                  <select [ngModel]="row.edgeData.sourceEndpoint || endpoints[0]?.name" (ngModelChange)="updateEdge(row.edge, 'sourceEndpoint', $event)">
+                    <option *ngFor="let ep of endpoints" [value]="ep.name">{{ ep.name }}</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Endpoint Destino</label>
+                  <select [ngModel]="row.edgeData.targetEndpoint" (ngModelChange)="updateEdge(row.edge, 'targetEndpoint', $event)">
+                    <option [value]="undefined" disabled>Seleccionar endpoint...</option>
+                    <option *ngFor="let epName of getAvailableEndpoints(row.targetName)" [value]="epName">{{ epName }}</option>
+                  </select>
+                </div>
+              </div>
               <!-- Activation flags — only show if pattern is configured -->
-              <div class="activation-flags" *ngIf="ep.resilience_patterns?.timeout || ep.resilience_patterns?.retry || ep.resilience_patterns?.fallback || ep.resilience_patterns?.circuit_breaker">
-                <label class="flag-toggle" *ngIf="ep.resilience_patterns?.timeout">
-                  <input type="checkbox" [ngModel]="row.edgeData.active_timeout" (ngModelChange)="updateEdge(row.edge, 'active_timeout', $event)" />
-                  <span class="to-label">Activar Timeout</span>
-                </label>
-                <label class="flag-toggle" *ngIf="ep.resilience_patterns?.retry">
-                  <input type="checkbox" [ngModel]="row.edgeData.active_retry" (ngModelChange)="updateEdge(row.edge, 'active_retry', $event)" />
-                  <span class="rt-label">Activar Retry</span>
-                </label>
-                <label class="flag-toggle" *ngIf="ep.resilience_patterns?.fallback">
-                  <input type="checkbox" [ngModel]="row.edgeData.active_fallback" (ngModelChange)="updateEdge(row.edge, 'active_fallback', $event)" />
-                  <span class="fb-label">Activar Fallback</span>
-                </label>
-                <label class="flag-toggle" *ngIf="ep.resilience_patterns?.circuit_breaker">
+              <div class="activation-flags" *ngIf="ep.resilience_parameters?.circuit_breaker">
+                <label class="flag-toggle">
                   <input type="checkbox" [ngModel]="row.edgeData.active_circuit_breaker" (ngModelChange)="updateEdge(row.edge, 'active_circuit_breaker', $event)" />
                   <span class="cb-label">Activar Circuit Breaker</span>
                 </label>
@@ -138,13 +142,13 @@ import { GraphService } from '../../../../core/services/graph.service';
           <!-- TIMEOUT -->
           <div class="pattern-block">
             <label class="pattern-toggle">
-              <input type="checkbox" [checked]="!!ep.resilience_patterns?.timeout" (change)="togglePattern(ep, 'timeout', $event)" />
+              <input type="checkbox" [checked]="!!ep.resilience_parameters?.timeout" (change)="togglePattern(ep, 'timeout', $event)" />
               <span class="to-label">Timeout</span>
             </label>
-            <div class="pattern-fields" *ngIf="ep.resilience_patterns?.timeout">
+            <div class="pattern-fields" *ngIf="ep.resilience_parameters?.timeout">
               <div class="field">
                 <label>Duration (s)</label>
-                <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.timeout!.duration_s" (ngModelChange)="emit()" />
+                <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.timeout!.duration_s" (ngModelChange)="emit()" />
               </div>
             </div>
           </div>
@@ -152,26 +156,26 @@ import { GraphService } from '../../../../core/services/graph.service';
           <!-- RETRY -->
           <div class="pattern-block">
             <label class="pattern-toggle">
-              <input type="checkbox" [checked]="!!ep.resilience_patterns?.retry" (change)="togglePattern(ep, 'retry', $event)" />
+              <input type="checkbox" [checked]="!!ep.resilience_parameters?.retry" (change)="togglePattern(ep, 'retry', $event)" />
               <span class="rt-label">Retry</span>
             </label>
-            <div class="pattern-fields" *ngIf="ep.resilience_patterns?.retry">
+            <div class="pattern-fields" *ngIf="ep.resilience_parameters?.retry">
               <div class="field-row">
                 <div class="field">
                   <label>Max Attempts</label>
-                  <input type="number" min="1" [(ngModel)]="ep.resilience_patterns!.retry!.max_attempts" (ngModelChange)="emit()" />
+                  <input type="number" min="1" [(ngModel)]="ep.resilience_parameters!.retry!.max_attempts" (ngModelChange)="emit()" />
                 </div>
                 <div class="field">
                   <label>Backoff (ms)</label>
-                  <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.retry!.backoff_ms" (ngModelChange)="emit()" />
+                  <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.retry!.backoff_ms" (ngModelChange)="emit()" />
                 </div>
                 <div class="field">
                   <label>Multiplicador</label>
-                  <input type="number" step="0.1" min="1" [(ngModel)]="ep.resilience_patterns!.retry!.backoff_multiplier" (ngModelChange)="emit()" />
+                  <input type="number" step="0.1" min="1" [(ngModel)]="ep.resilience_parameters!.retry!.backoff_multiplier" (ngModelChange)="emit()" />
                 </div>
                 <div class="field">
                   <label>Max Backoff (ms)</label>
-                  <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.retry!.max_backoff_ms" (ngModelChange)="emit()" />
+                  <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.retry!.max_backoff_ms" (ngModelChange)="emit()" />
                 </div>
               </div>
             </div>
@@ -180,59 +184,56 @@ import { GraphService } from '../../../../core/services/graph.service';
           <!-- FALLBACK -->
           <div class="pattern-block">
             <label class="pattern-toggle">
-              <input type="checkbox" [checked]="!!ep.resilience_patterns?.fallback" (change)="togglePattern(ep, 'fallback', $event)" />
+              <input type="checkbox" [checked]="!!ep.resilience_parameters?.fallback" (change)="togglePattern(ep, 'fallback', $event)" />
               <span class="fb-label">Fallback</span>
             </label>
-            <div class="pattern-fields" *ngIf="ep.resilience_patterns?.fallback">
+            <div class="pattern-fields" *ngIf="ep.resilience_parameters?.fallback">
               <div class="field">
                 <label>Tipo de Fallback</label>
-                <select [(ngModel)]="ep.resilience_patterns!.fallback!.type" (ngModelChange)="emit()">
+                <select [(ngModel)]="ep.resilience_parameters!.fallback!.type" (ngModelChange)="emit()">
                   <option value="static">Static (Respuesta fija)</option>
                   <option value="service">Service (Redirigir a otro servicio)</option>
                 </select>
               </div>
 
               <!-- STATIC FIELDS -->
-              <ng-container *ngIf="ep.resilience_patterns!.fallback!.type === 'static'">
+              <ng-container *ngIf="ep.resilience_parameters!.fallback!.type === 'static'">
                 <div class="field-row">
                   <div class="field">
                     <label>Código de respuesta</label>
-                    <input type="number" [(ngModel)]="ep.resilience_patterns!.fallback!.response_code" (ngModelChange)="emit()" />
+                    <input type="number" [(ngModel)]="ep.resilience_parameters!.fallback!.response_code" (ngModelChange)="emit()" />
                   </div>
                   <div class="field">
                     <label>Payload de respuesta</label>
-                    <input type="text" [(ngModel)]="ep.resilience_patterns!.fallback!.response_payload" (ngModelChange)="emit()" placeholder="fallback-response" />
+                    <input type="text" [(ngModel)]="ep.resilience_parameters!.fallback!.response_payload" (ngModelChange)="emit()" placeholder="fallback-response" />
                   </div>
                 </div>
               </ng-container>
 
               <!-- SERVICE FIELDS -->
-              <ng-container *ngIf="ep.resilience_patterns!.fallback!.type === 'service'">
+              <ng-container *ngIf="ep.resilience_parameters!.fallback!.type === 'service'">
                 <div class="field-row">
                   <div class="field">
                     <label>Servicio Destino</label>
-                    <select [(ngModel)]="ep.resilience_patterns!.fallback!.service" (ngModelChange)="onFallbackServiceChange(ep)">
+                    <select [(ngModel)]="ep.resilience_parameters!.fallback!.service" (ngModelChange)="onFallbackServiceChange(ep)">
                       <option [value]="undefined" disabled>Seleccionar servicio...</option>
                       <option *ngFor="let s of getUniqueTargetServices(ep.name)" [value]="s">{{ s }}</option>
                     </select>
                   </div>
                   <div class="field">
                     <label>Endpoint</label>
-                    <select [(ngModel)]="ep.resilience_patterns!.fallback!.endpoint" (ngModelChange)="onFallbackEndpointChange(ep)" [disabled]="!ep.resilience_patterns!.fallback!.service">
+                    <select [(ngModel)]="ep.resilience_parameters!.fallback!.endpoint" (ngModelChange)="onFallbackEndpointChange(ep)" [disabled]="!ep.resilience_parameters!.fallback!.service">
                       <option [value]="undefined" disabled>Seleccionar endpoint...</option>
-                      <option *ngFor="let e of getEndpointsForTarget(ep.name, ep.resilience_patterns!.fallback!.service!)" [value]="e">{{ e }}</option>
+                      <option *ngFor="let e of getEndpointsForTarget(ep.name, ep.resilience_parameters!.fallback!.service!)" [value]="e">{{ e }}</option>
                     </select>
                   </div>
                   <div class="field">
                     <label>Puerto</label>
-                    <select [(ngModel)]="ep.resilience_patterns!.fallback!.port" (ngModelChange)="emit()" [disabled]="!ep.resilience_patterns!.fallback!.endpoint">
+                    <select [(ngModel)]="ep.resilience_parameters!.fallback!.port" (ngModelChange)="emit()" [disabled]="!ep.resilience_parameters!.fallback!.endpoint">
                       <option [value]="undefined" disabled>Seleccionar puerto...</option>
-                      <option *ngFor="let p of getPortsForTarget(ep.name, ep.resilience_patterns!.fallback!.service!, ep.resilience_patterns!.fallback!.endpoint!)" [value]="p">{{ p }}</option>
+                      <option *ngFor="let p of getPortsForTarget(ep.name, ep.resilience_parameters!.fallback!.service!, ep.resilience_parameters!.fallback!.endpoint!)" [value]="p">{{ p }}</option>
                     </select>
                   </div>
-                </div>
-                <div class="hint-error" *ngIf="getUniqueTargetServices(ep.name).length === 0">
-                  ⚠️ No hay conexiones salientes definidas para este endpoint en el canvas.
                 </div>
               </ng-container>
             </div>
@@ -241,18 +242,18 @@ import { GraphService } from '../../../../core/services/graph.service';
           <!-- CIRCUIT BREAKER -->
           <div class="pattern-block">
             <label class="pattern-toggle">
-              <input type="checkbox" [checked]="!!ep.resilience_patterns?.circuit_breaker" (change)="togglePattern(ep, 'circuit_breaker', $event)" />
+              <input type="checkbox" [checked]="!!ep.resilience_parameters?.circuit_breaker" (change)="togglePattern(ep, 'circuit_breaker', $event)" />
               <span class="cb-label">Circuit Breaker</span>
             </label>
-            <div class="pattern-fields" *ngIf="ep.resilience_patterns?.circuit_breaker">
+            <div class="pattern-fields" *ngIf="ep.resilience_parameters?.circuit_breaker">
               <div class="field-row">
                 <div class="field">
                   <label>Timeout (s)</label>
-                  <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.circuit_breaker!.timeout" (ngModelChange)="emit()" />
+                  <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.circuit_breaker!.timeout" (ngModelChange)="emit()" />
                 </div>
                 <div class="field">
                   <label>Retry Timer (s)</label>
-                  <input type="number" min="0" [(ngModel)]="ep.resilience_patterns!.circuit_breaker!.retry_timer" (ngModelChange)="emit()" />
+                  <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.circuit_breaker!.retry_timer" (ngModelChange)="emit()" />
                 </div>
               </div>
             </div>
@@ -430,15 +431,31 @@ export class EndpointsTabComponent implements OnChanges {
 
   togglePattern(ep: any, pattern: 'timeout' | 'retry' | 'fallback' | 'circuit_breaker', event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
-    if (!ep.resilience_patterns) ep.resilience_patterns = {};
+    if (!ep.resilience_parameters) ep.resilience_parameters = {};
+
     if (checked) {
-      if (pattern === 'timeout') ep.resilience_patterns.timeout = { duration_s: 5 };
-      if (pattern === 'retry') ep.resilience_patterns.retry = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 };
-      if (pattern === 'fallback') ep.resilience_patterns.fallback = { type: 'static', response_code: 200, response_payload: 'fallback-response' };
-      if (pattern === 'circuit_breaker') ep.resilience_patterns.circuit_breaker = { timeout: 5, retry_timer: 10 };
+      if (pattern === 'circuit_breaker') {
+        // Circuit Breaker is exclusive with Timeout and Retry, but compatible with Fallback
+        delete ep.resilience_parameters.timeout;
+        delete ep.resilience_parameters.retry;
+        ep.resilience_parameters.circuit_breaker = { timeout: 5, retry_timer: 10 };
+      } else if (pattern === 'timeout') {
+        // Timeout is exclusive with Retry and Circuit Breaker
+        delete ep.resilience_parameters.retry;
+        delete ep.resilience_parameters.circuit_breaker;
+        ep.resilience_parameters.timeout = { duration_s: 5 };
+      } else if (pattern === 'retry') {
+        // Retry is exclusive with Timeout and Circuit Breaker
+        delete ep.resilience_parameters.timeout;
+        delete ep.resilience_parameters.circuit_breaker;
+        ep.resilience_parameters.retry = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 };
+      } else if (pattern === 'fallback') {
+        // Fallback is compatible with all other active patterns
+        ep.resilience_parameters.fallback = { type: 'static', response_code: 200, response_payload: 'fallback-response' };
+      }
     } else {
-      delete ep.resilience_patterns[pattern];
-      if (Object.keys(ep.resilience_patterns).length === 0) delete ep.resilience_patterns;
+      delete ep.resilience_parameters[pattern];
+      if (Object.keys(ep.resilience_parameters).length === 0) delete ep.resilience_parameters;
     }
     this.emit();
   }
@@ -450,27 +467,54 @@ export class EndpointsTabComponent implements OnChanges {
     this.emit();
   }
 
+  getAvailableEndpoints(serviceName: string): string[] {
+    const graph = this.graphService.getGraph();
+    if (!graph) return [];
+    const node = graph.getNodes().find(n => (n.getData() as any)?.name === serviceName);
+    if (!node) return [];
+    const data = node.getData() as any;
+    return (data.endpoints || []).map((ep: any) => ep.name || 'endpoint');
+  }
+
   // --- Fallback Helpers ---
 
   getUniqueTargetServices(epName: string): string[] {
-    const edges = this.cachedEdges[epName] || [];
-    return [...new Set(edges.map(e => e.targetName))];
+    const graph = this.graphService.getGraph();
+    if (!graph) return [];
+    return graph.getNodes()
+      .map(n => (n.getData() as any)?.name)
+      .filter(name => name && name !== this.nodeData.name); // Evitar llamarse a si mismo
   }
 
   getEndpointsForTarget(epName: string, targetName: string): string[] {
     if (!targetName) return [];
-    const edges = this.cachedEdges[epName] || [];
-    return [...new Set(edges.filter(e => e.targetName === targetName).map(e => e.targetEndpoint))];
+    const graph = this.graphService.getGraph();
+    if (!graph) return [];
+    const node = graph.getNodes().find(n => (n.getData() as any)?.name === targetName);
+    if (!node) return [];
+    const data = node.getData() as any;
+    return (data.endpoints || []).map((ep: any) => ep.name || 'endpoint');
   }
 
   getPortsForTarget(epName: string, targetName: string, targetEndpoint: string): number[] {
     if (!targetName || !targetEndpoint) return [];
-    const edges = this.cachedEdges[epName] || [];
-    return [...new Set(edges.filter(e => e.targetName === targetName && e.targetEndpoint === targetEndpoint).map(e => e.edgeData.port))];
+    const graph = this.graphService.getGraph();
+    if (!graph) return [80];
+    
+    // Buscar puertos usados en cualquier conexion hacia este target/endpoint
+    const edges = graph.getEdges().filter(e => {
+      const ed = e.getData() || {};
+      const tgtNode = graph.getCellById(e.getTargetCellId() as string);
+      const tgtData = (tgtNode?.isNode() ? (tgtNode as any).getData() : {}) || {};
+      return tgtData.name === targetName && (ed.targetEndpoint === targetEndpoint || (!ed.targetEndpoint && targetEndpoint === 'end1'));
+    });
+
+    if (edges.length === 0) return [80, 443, 8080];
+    return [...new Set(edges.map(e => (e.getData() as any).port || 80))];
   }
 
   onFallbackServiceChange(ep: any) {
-    const fb = ep.resilience_patterns?.fallback;
+    const fb = ep.resilience_parameters?.fallback;
     if (!fb) return;
     const endpoints = this.getEndpointsForTarget(ep.name, fb.service);
     fb.endpoint = endpoints.length > 0 ? endpoints[0] : undefined;
@@ -478,7 +522,7 @@ export class EndpointsTabComponent implements OnChanges {
   }
 
   onFallbackEndpointChange(ep: any) {
-    const fb = ep.resilience_patterns?.fallback;
+    const fb = ep.resilience_parameters?.fallback;
     if (!fb) return;
     const ports = this.getPortsForTarget(ep.name, fb.service, fb.endpoint);
     fb.port = ports.length > 0 ? ports[0] : undefined;

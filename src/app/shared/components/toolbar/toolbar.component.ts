@@ -220,14 +220,15 @@ export class ToolbarComponent {
         development: true, 
         base_image: 'ubuntu:20.04',
         clusters: [
-          { name: 'cluster1', namespace: 'hydragen', replicas: 2, services: ['api-gateway', 'service-backend'] }
+          { name: 'cluster1', namespace: 'hydragen', services: ['api-gateway', 'service-backend'] }
         ]
       },
       services: [
         {
           name: 'api-gateway',
           protocol: 'http',
-          clusters: [], // Local clusters ignored, uses global ones
+          replicas: 2,
+          clusters: [{ cluster: 'cluster1', namespace: 'hydragen' }],
           resources: { limits: { cpu: '500m', memory: '512M' }, requests: { cpu: '250m', memory: '256M' } },
           processes: 1,
           readiness_probe: 2,
@@ -243,11 +244,10 @@ export class ToolbarComponent {
                 endpoint: 'end1',
                 port: 80, protocol: 'http',
                 traffic_forward_ratio: 1, request_payload_size: 128,
-                active_timeout: true, active_retry: true, active_fallback: false,
                 active_circuit_breaker: true
               }]
             },
-            resilience_patterns: {
+            resilience_parameters: {
               timeout: { duration_s: 3 },
               retry: { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 }
             }
@@ -256,7 +256,8 @@ export class ToolbarComponent {
         {
           name: 'service-backend',
           protocol: 'http',
-          clusters: [], // Local clusters ignored, uses global ones
+          replicas: 1,
+          clusters: [{ cluster: 'cluster1', namespace: 'hydragen' }],
           resources: { limits: { cpu: '300m', memory: '256M' }, requests: { cpu: '150m', memory: '128M' } },
           processes: 1,
           readiness_probe: 2,

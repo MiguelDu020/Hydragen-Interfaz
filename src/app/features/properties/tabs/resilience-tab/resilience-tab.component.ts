@@ -21,17 +21,17 @@ import { CommonModule } from '@angular/common';
         <tbody>
           <tr *ngFor="let row of rows">
             <td class="ep-name">{{ row.name }}</td>
-            <td><span [class]="row.timeout ? 'badge on' : 'badge off'">{{ row.timeout || '✗' }}</span></td>
-            <td><span [class]="row.retry   ? 'badge on' : 'badge off'">{{ row.retry   || '✗' }}</span></td>
-            <td><span [class]="row.fallback? 'badge on' : 'badge off'">{{ row.fallback|| '✗' }}</span></td>
-            <td><span [class]="row.cb      ? 'badge on' : 'badge off'">{{ row.cb      || '✗' }}</span></td>
+            <td><span [class]="row.timeout ? 'badge on' : 'badge off'">{{ row.timeout || '-' }}</span></td>
+            <td><span [class]="row.retry   ? 'badge on' : 'badge off'">{{ row.retry   || '-' }}</span></td>
+            <td><span [class]="row.fallback? 'badge on' : 'badge off'">{{ row.fallback|| '-' }}</span></td>
+            <td><span [class]="row.cb      ? 'badge on' : 'badge off'">{{ row.cb      || '-' }}</span></td>
           </tr>
         </tbody>
       </table>
       <ng-template #noEndpoints>
         <p class="empty">No hay endpoints configurados.</p>
       </ng-template>
-      <button class="btn-goto" (click)="goToEndpoints.emit()">Ir a Endpoints →</button>
+      <button class="btn-goto" (click)="goToEndpoints.emit()">Ir a Endpoints -> </button>
     </div>
   `,
   styles: [`
@@ -74,13 +74,13 @@ export class ResilienceTabComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
       this.rows = (this.nodeData.endpoints || []).map((ep: any) => {
-        const rp = ep.resilience_patterns || {};
+        const rp = ep.resilience_parameters || {};
         return {
           name:     ep.name || '?',
-          timeout:  rp.timeout  ? `✓ ${rp.timeout.duration_s}s`                                          : '',
-          retry:    rp.retry    ? `✓ ${rp.retry.max_attempts} intentos`                                    : '',
-          fallback: rp.fallback ? `✓ ${rp.fallback.type === 'static' ? 'static:' + rp.fallback.response_code : 'svc:' + rp.fallback.service}` : '',
-          cb:       rp.circuit_breaker ? `✓ TO:${rp.circuit_breaker.timeout}s` : ''
+          timeout:  rp.timeout  ? `[X] ${rp.timeout.duration_s}s`                                          : '',
+          retry:    rp.retry    ? `[X] ${rp.retry.max_attempts} intentos`                                    : '',
+          fallback: rp.fallback ? `[X] ${rp.fallback.type === 'static' ? 'static:' + rp.fallback.response_code : 'svc:' + rp.fallback.service}` : '',
+          cb:       rp.circuit_breaker ? `[X] TO:${rp.circuit_breaker.timeout}s` : ''
         };
       });
     }

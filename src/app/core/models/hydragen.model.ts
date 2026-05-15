@@ -9,7 +9,6 @@ export interface HydraGenConfig {
 export interface ClusterDefinition {
   name: string;
   namespace: string;
-  replicas: number;
   services: string[]; // List of service names
 }
 
@@ -29,6 +28,7 @@ export interface ClusterLatency {
 export interface Service {
   name: string;
   protocol: 'http' | 'grpc';
+  replicas: number;
   clusters: ClusterConfig[];
   resources: Resources;
   processes: number;
@@ -42,7 +42,6 @@ export interface Service {
 
 export interface ClusterConfig {
   cluster: string;
-  replicas: number;
   namespace: string;
   node?: string;
   annotations?: Record<string, string> | Annotation[];
@@ -68,7 +67,7 @@ export interface Endpoint {
   execution_mode: 'sequential' | 'parallel';
   cpu_complexity: CpuComplexity;
   network_complexity: NetworkComplexity;
-  resilience_patterns?: ResiliencePatterns; // ← at endpoint level
+  resilience_parameters?: ResiliencePatterns; // ← at endpoint level
 }
 
 export interface CpuComplexity {
@@ -89,9 +88,5 @@ export interface CalledService {
   protocol: 'http' | 'grpc';
   traffic_forward_ratio: number;
   request_payload_size: number;
-  active_timeout?: boolean;
-  active_retry?: boolean;
-  active_fallback?: boolean;
   active_circuit_breaker?: boolean;
-  resilience_patterns?: ResiliencePatterns;
 }
