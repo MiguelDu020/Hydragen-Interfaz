@@ -7,7 +7,7 @@ import { GraphService } from '../../core/services/graph.service';
 
 /** Trunca texto y añade '…' para que nunca desborde la caja en SVG. */
 function trunc(text: string, maxChars: number): string {
-  return text.length > maxChars ? text.substring(0, maxChars - 1) + '...' : text;
+  return text.length > maxChars ? text.substring(0, maxChars - 1) + '\u2026' : text;
 }
 
 const NODE_W = 260;
@@ -242,12 +242,12 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
       x, y, width: NODE_W, height: NODE_H, shape: 'service-node', data,
       attrs: {
         divider: { x1: 0, y1: 42, x2: NODE_W, y2: 42, stroke: 'var(--node-divider)', strokeWidth: 1 },
-        icon: { text: '(o)', fill: 'var(--text-muted)', fontSize: 14, x: 14, y: 26 },
-        title:         { text: titleTxt, fill: 'var(--node-text)', fontSize: 13, fontWeight: 700, x: 34, y: 26 },
-        badgeBg:       { fill: 'var(--node-badge-bg)', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
-        badge:         { text: proto, fill: 'var(--node-badge-text)', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },
-        resources:     { text: resourceTxt, fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 68, fontFamily: 'monospace' },
-        cluster:       { text: clusterTxt,  fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 86, fontFamily: 'monospace' },
+        icon: { text: '\u25c9', fill: 'var(--text-muted)', fontSize: 14, x: 14, y: 26 },
+        title: { text: titleTxt, fill: 'var(--node-text)', fontSize: 13, fontWeight: 700, x: 34, y: 26 },
+        badgeBg: { fill: 'var(--node-badge-bg)', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
+        badge: { text: proto, fill: 'var(--node-badge-text)', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },
+        resources: { text: resourceTxt, fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 68, fontFamily: 'monospace' },
+        cluster: { text: clusterTxt, fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 86, fontFamily: 'monospace' },
         patternBadges: { text: '', fill: 'var(--accent-blue)', fontSize: 10, fontWeight: 700, x: 14, y: 110, fontFamily: 'monospace' }
       },
       ports: {
