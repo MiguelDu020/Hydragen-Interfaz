@@ -209,7 +209,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
     const name = `service-${++this.serviceCounter}`;
     this.createServiceNodeWithData(x, y, {
       rawType: 'service', name, protocol: 'http', replicas: 1,
-      clusters: [{ cluster: 'cluster1', namespace: 'default' }],
+      clusters: [],
       resources: { limits: { cpu: '1000m', memory: '1024M' }, requests: { cpu: '500m', memory: '256M' } },
       processes: 1, readiness_probe: 2, logging: false, development: false, base_image: '',
       endpoints: [{
@@ -228,7 +228,7 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
     const memReq = data.resources?.requests?.memory || '256M';
     const memLim = data.resources?.limits?.memory || '1024M';
     const repl = data.replicas ?? 1;
-    const clust = data.clusters?.[0]?.cluster || 'cluster1';
+    const clust = data.clusters?.[0]?.cluster || '';
     const proto = (data.protocol || 'http').toUpperCase();
 
     // Texto truncado en JS — garantía de que nunca desborda la caja

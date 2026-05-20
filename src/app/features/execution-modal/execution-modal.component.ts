@@ -47,6 +47,8 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
   sshPassword = '';
   sudoPassword = '';
   verifyBackend = true;
+  cleanupNamespace = false;
+  namespace = '';
 
   // ── State ──────────────────────────────────────────────────────────────────
   view: ModalView = 'config';
@@ -65,7 +67,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
     { num: 1, label: 'Guardar configuración', status: 'pending' },
     { num: 2, label: 'Generar imagen Docker', status: 'pending' },
     { num: 3, label: 'Distribuir imagen a nodos', status: 'pending' },
-    { num: 4, label: 'Configurar kubectl', status: 'pending' },
+    { num: 4, label: 'Limpiar namespace Kubernetes', status: 'pending' },
     { num: 5, label: 'Desplegar en Kubernetes', status: 'pending' },
   ];
 
@@ -271,7 +273,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
       }
 
       const sub = this.executionService
-        .executeBenchmark(config, this.hydragenPath, this.sudoPassword, this.sshPassword)
+        .executeBenchmark(config, this.hydragenPath, this.sudoPassword, this.sshPassword, this.cleanupNamespace, this.namespace)
         .subscribe({
           next: ({ job_id }) => {
             this.jobId = job_id;

@@ -29,7 +29,7 @@ app.add_middleware(
 jobs: dict = {}
 metrics_process: Optional[subprocess.Popen] = None
 
-TOTAL_STEPS = 4
+TOTAL_STEPS = 5
 
 
 # ── Request / Response Models ─────────────────────────────────────────────────
@@ -38,6 +38,9 @@ class ExecuteRequest(BaseModel):
     hydragen_path: str = "/home/user/hydragen"
     sudo_password: Optional[str] = ""
     ssh_password: Optional[str] = ""
+
+    cleanup_namespace: bool = False
+    namespace: Optional[str] = "default"
 
 
 class ExecuteResponse(BaseModel):
@@ -123,7 +126,9 @@ def execute_pipeline(
     config: dict,
     hydragen_path: str,
     sudo_password: str,
-    ssh_password: str
+    ssh_password: str,
+    cleanup_namespace: bool,
+    namespace: str
 ) -> None:
     """Full HydraGen pipeline — runs in a dedicated thread."""
     # Carpeta donde están los scripts (backend/)
@@ -196,20 +201,47 @@ def execute_pipeline(
 
         _append_log(job_id, "✓ Imagen distribuida a todos los nodos", 3, "INFO")
 
-        # ── STEP 4: deploy.sh ────────────────────────────────────────────────
+        # ── STEP 4: Cleanup namespace ─────────────────────────────
+        if cleanup_namespace:
+            run_path = hydragen_path
+
+            rc = run_command(
+                f"kubectl delete all --all -n {namespace}",
+                run_path,
+                job_id,
+                4,
+                f"Limpiando namespace '{namespace}'..."
+            )
+
+            if rc != 0:
+                if jobs[job_id]["status"] == "failed":
+                    return
+
+                raise RuntimeError(
+                    f"Cleanup del namespace falló con código {rc}"
+                )
+
+            _append_log(
+                job_id,
+                f"✓ Namespace '{namespace}' limpiado correctamente",
+                4,
+                "INFO"
+            )
+
+        # ── STEP 5: deploy.sh ────────────────────────────────────────────────
         #deploy_script = os.path.join(backend_dir, "deploy.sh")
         deploy_script = "deploy.sh"
         run_path = os.path.join(hydragen_path, "generator")
         rc = run_command(
             f"bash {deploy_script} input/description.json",
-            run_path, job_id, 4,
+            run_path, job_id, 5,
             "Desplegando microservicios en Kubernetes..."
         )
         if rc != 0:
             if jobs[job_id]["status"] == "failed": return # Cancelled
             raise RuntimeError(f"deploy.sh falló con código de salida {rc}")
 
-        _append_log(job_id, "✓ Benchmark desplegado correctamente en Kubernetes", 4, "INFO")
+        _append_log(job_id, "✓ Benchmark desplegado correctamente en Kubernetes", 5, "INFO")
 
         # ── Done ─────────────────────────────────────────────────────────────
         jobs[job_id]["status"] = "completed"
@@ -261,7 +293,8 @@ def execute(req: ExecuteRequest):
 
     t = threading.Thread(
         target=execute_pipeline,
-        args=(job_id, req.config, req.hydragen_path, req.sudo_password or "", req.ssh_password or ""),
+        args=(job_id, req.config, req.hydragen_path, req.sudo_password or "", req.ssh_password or "", req.cleanup_namespace,
+        req.namespace or ""),
         daemon=True
     )
     t.start()

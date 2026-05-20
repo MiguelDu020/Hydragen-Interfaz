@@ -14,7 +14,8 @@ export class GraphService {
   private globalSettings: GlobalSettings = {
     logging: true,
     development: true,
-    base_image: ''
+    base_image: '',
+    clusters: []
   };
   private clusterLatencies: ClusterLatency[] = [];
 
@@ -90,7 +91,7 @@ export class GraphService {
     const memReq = data.resources?.requests?.memory || '256M';
     const memLim = data.resources?.limits?.memory || '1024M';
     const replicas = data.replicas ?? 1;
-    const cluster = data.clusters?.[0]?.cluster || 'cluster1';
+    const cluster = data.clusters?.[0]?.cluster || '';
 
     try { node.attr('title/text', trunc(name, 20)); node.attr('title/fill', 'var(--node-text)'); node.attr('title/fontSize', 13); node.attr('title/fontWeight', 700); } catch (_) { }
     try { node.attr('badge/text', protocol); node.attr('badge/fill', 'var(--node-badge-text)'); node.attr('badgeBg/fill', 'var(--node-badge-bg)'); } catch (_) { }
@@ -172,7 +173,7 @@ export class GraphService {
           badgeBg: { fill: 'var(--node-badge-bg)', rx: 5, ry: 5, width: 44, height: 18, refX: '100%', refX2: -56, y: 11 },
           badge: { text: (service.protocol || 'http').toUpperCase(), fill: 'var(--node-badge-text)', fontSize: 9, fontWeight: 600, refX: '100%', refX2: -52, y: 23 },
           resources: { text: trunc(`CPU ${service.resources?.requests?.cpu || '500m'}/${service.resources?.limits?.cpu || '1000m'}  MEM ${service.resources?.requests?.memory || '256M'}/${service.resources?.limits?.memory || '1024M'}`, 36), fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 68, fontFamily: 'monospace' },
-          cluster: { text: trunc(`Replicas ${(service as any).replicas ?? 1}  Cluster ${service.clusters?.[0]?.cluster || 'cluster1'}`, 34), fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 86, fontFamily: 'monospace' },
+          cluster: { text: trunc(`Replicas ${(service as any).replicas ?? 1}  Cluster ${service.clusters?.[0]?.cluster || ''}`, 34), fill: 'var(--node-text-muted)', fontSize: 11, x: 14, y: 86, fontFamily: 'monospace' },
           patternBadges: { text: badges.join('  '), fill: 'var(--accent-blue)', fontSize: 10, fontWeight: 700, x: 14, y: 110, fontFamily: 'monospace' }
         },
         ports: {

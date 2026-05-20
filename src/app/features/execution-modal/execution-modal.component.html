@@ -94,6 +94,33 @@
           <span class="field-hint">Dejar vacío si el usuario tiene acceso directo a containerd sin <code>sudo</code>.</span>
         </div>
 
+        <div class="field-group">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="cleanupNamespace" />
+            <span class="checkmark"></span>
+            Limpiar namespace antes del deploy
+          </label>
+        </div>
+
+        <div class="field-group" *ngIf="cleanupNamespace">
+          <label class="field-label" for="namespace">
+            Namespace Kubernetes
+          </label>
+
+          <input
+            id="namespace"
+            class="field-input"
+            type="text"
+            [(ngModel)]="namespace"
+            placeholder="benchmark"
+          />
+
+          <span class="field-hint">
+            Se ejecutará:
+            <code>kubectl delete all --all -n {{ namespace }}</code>
+          </span>
+        </div>
+
         <div class="checkbox-row">
           <label class="checkbox-label">
             <input type="checkbox" [(ngModel)]="verifyBackend" />

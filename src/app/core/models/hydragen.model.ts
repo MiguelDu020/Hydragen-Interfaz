@@ -9,14 +9,14 @@ export interface HydraGenConfig {
 export interface ClusterDefinition {
   name: string;
   namespace: string;
-  services: string[]; // List of service names
 }
 
 export interface GlobalSettings {
   logging: boolean;
   development: boolean;
   base_image: string;
-  clusters?: ClusterDefinition[];
+
+  clusters: ClusterDefinition[];
 }
 
 export interface ClusterLatency {

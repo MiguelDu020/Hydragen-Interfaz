@@ -43,13 +43,17 @@ export class ExecutionService {
     config: any,
     hydragenPath: string,
     sudoPassword = '',
-    sshPassword = ''
+    sshPassword = '',
+    cleanupNamespace: boolean,
+    namespace = ''
   ): Observable<ExecuteResponse> {
     return this.http.post<ExecuteResponse>(`${this.API_URL}/execute`, {
       config,
       hydragen_path: hydragenPath,
       sudo_password: sudoPassword,
       ssh_password: sshPassword,
+      cleanupNamespace: cleanupNamespace,
+      namespace: namespace
     });
   }
 

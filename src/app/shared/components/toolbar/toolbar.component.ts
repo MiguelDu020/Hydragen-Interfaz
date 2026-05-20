@@ -220,7 +220,7 @@ export class ToolbarComponent {
         development: true, 
         base_image: 'ubuntu:20.04',
         clusters: [
-          { name: 'cluster1', namespace: 'hydragen', services: ['api-gateway', 'service-backend'] }
+          { name: 'cluster1', namespace: 'hydragen'}
         ]
       },
       services: [

@@ -29,7 +29,8 @@ export class ExporterService {
     if (!graph) throw new Error('Graph not initialized');
 
     const latencies = this.graphService.getClusterLatencies();
-    const settings = this.graphService.getSettings();
+    const rawSettings = this.graphService.getSettings();
+    const { clusters, ...settings } = rawSettings;
     const nodes = graph.getNodes();
     const allEdges = graph.getEdges();
 
@@ -39,18 +40,12 @@ export class ExporterService {
       // --- Clusters (Replicas are now per-service) ---
       const clusters = (nd.clusters || []).map((c: any) => {
         // Try to find global definition for namespace fallback
-        const globalDef = (settings.clusters || []).find((gc: any) => gc.name === c.cluster);
         return {
-          cluster: c.cluster || 'cluster1',
+          cluster: c.cluster,
           replicas: nd.replicas ?? 1,
-          namespace: c.namespace || globalDef?.namespace || 'default'
+          namespace: c.namespace
         };
       });
-
-      // Fallback if empty
-      if (clusters.length === 0) {
-        clusters.push({ cluster: 'cluster1', replicas: 1, namespace: 'default' });
-      }
 
       // --- Service base ---
       const service: any = {

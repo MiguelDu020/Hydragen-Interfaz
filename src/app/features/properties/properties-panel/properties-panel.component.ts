@@ -47,7 +47,7 @@ type PanelMode = 'node' | 'edge' | 'global';
         </div>
 
         <div class="tab-content">
-          <app-general-tab    *ngIf="activeTab==='general'"    [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-general-tab>
+          <app-general-tab    *ngIf="activeTab==='general'"    [nodeData]="pendingData" [availableClusters]="settings.clusters" (dataChange)="pendingData=$event" (goToGlobalSettings)="setMode('global')" ></app-general-tab>
           <app-resources-tab  *ngIf="activeTab==='resources'"  [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-resources-tab>
           <app-endpoints-tab  *ngIf="activeTab==='endpoints'"  [nodeData]="pendingData" [nodeId]="selectedNode!.id" (dataChange)="pendingData=$event"></app-endpoints-tab>
           <app-resilience-tab *ngIf="activeTab==='resilience'" [nodeData]="pendingData" (goToEndpoints)="activeTab='endpoints'"></app-resilience-tab>
@@ -166,18 +166,6 @@ type PanelMode = 'node' | 'edge' | 'global';
                   <input type="text" [(ngModel)]="cls.namespace" placeholder="default" />
                 </div>
               </div>
-
-              <div class="services-assoc">
-                <label class="assoc-label">Servicios asociados:</label>
-                <div class="assoc-grid">
-                  <label *ngFor="let sName of getAllServiceNames()" class="assoc-check">
-                    <input type="checkbox" [checked]="cls.services.includes(sName)" (change)="toggleServiceInCluster(cls, sName)" />
-                    <span>{{ sName }}</span>
-                  </label>
-                </div>
-                <div class="hint-small" *ngIf="getAllServiceNames().length === 0">No hay servicios en el canvas.</div>
-              </div>
-
               <button class="btn-remove-sm" (click)="removeGlobalCluster(i)">Eliminar Cluster</button>
             </div>
             <button class="btn-add-sm" (click)="addGlobalCluster()">+ Agregar Cluster Global</button>
@@ -459,9 +447,16 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() { this.subs.unsubscribe(); }
 
+  setMode(mode: PanelMode) {
+    this.mode = mode;
+    this.activeTab = 'general';
+    this.cdr.detectChanges();
+  }
+
   /* ═══════════ Node ═══════════ */
   applyNodeData() {
     if (!this.selectedNode) return;
+    console.log(this.pendingData)
     this.selectedNode.setData(this.pendingData, { overwrite: true });
     this.graphService.refreshNodeVisuals(this.selectedNode);
     this.graphService.notifyApply();
@@ -513,7 +508,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
   addGlobalCluster() {
     if (!this.settings.clusters) this.settings.clusters = [];
-    this.settings.clusters.push({ name: 'cluster1', namespace: 'default', services: [] });
+    this.settings.clusters.push({ name: 'cluster1', namespace: 'default'});
     this.saveSettings();
   }
 
