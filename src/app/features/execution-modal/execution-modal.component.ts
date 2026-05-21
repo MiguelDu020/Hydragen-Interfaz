@@ -88,6 +88,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadPaths();
+    this.initializeSteps();
   }
 
   private loadPaths(): void {
@@ -113,6 +114,32 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
     const filtered = this.hydragenPaths.filter(p => p !== path);
     this.hydragenPaths = [path, ...filtered].slice(0, 5); // Keep last 5
     localStorage.setItem('hydragen_paths', JSON.stringify(this.hydragenPaths));
+  }
+
+  hasFaultInjections(): boolean {
+    try {
+      const config = this.exporterService.generateConfig();
+      if (!config || !config.services) return false;
+      return config.services.some((s: any) =>
+        s.fault_injection && s.fault_injection.type && s.fault_injection.type !== 'none'
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  initializeSteps(): void {
+    const baseSteps: PipelineStep[] = [
+      { num: 1, label: 'Guardar configuración', status: 'pending' },
+      { num: 2, label: 'Generar imagen Docker', status: 'pending' },
+      { num: 3, label: 'Distribuir imagen a nodos', status: 'pending' },
+      { num: 4, label: 'Limpiar namespace Kubernetes', status: 'pending' },
+      { num: 5, label: 'Desplegar en Kubernetes', status: 'pending' },
+    ];
+    if (this.hasFaultInjections()) {
+      baseSteps.push({ num: 6, label: 'Aplicar inyección de fallas', status: 'pending' });
+    }
+    this.steps = baseSteps;
   }
 
   ngOnDestroy(): void {
@@ -191,6 +218,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
     this.currentStep = 0;
     this.errorMessage = '';
     this.sshWarningAccepted = false;
+    this.initializeSteps();
     this.steps.forEach((s) => (s.status = 'pending'));
     this.timerSub?.unsubscribe();
     this.stopMetrics();
@@ -261,6 +289,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
   private _startExecution(): void {
     this.isStarting = true;
     this.backendError = '';
+    this.initializeSteps();
 
     const doExecute = () => {
       let config: any;

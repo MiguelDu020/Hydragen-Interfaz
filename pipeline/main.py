@@ -58,6 +58,11 @@ class StatusResponse(BaseModel):
     error: Optional[str] = None
 
 
+class ApplyFaultsRequest(BaseModel):
+    config: dict
+    sudo_password: Optional[str] = ""
+
+
 # ── Pipeline helpers ──────────────────────────────────────────────────────────
 def _make_env() -> dict:
     """Return an environment dict with Go bin dir in PATH."""
@@ -120,6 +125,148 @@ def run_command(
     return process.returncode
 
 
+def generate_virtual_service_yaml(service_name: str, protocol: str, fault_config: dict, namespace: str) -> str:
+    """Generate VirtualService YAML content with fault injection settings.
+    Uses Istio v1beta1 API and names files as `<service>-<fault_type>.yaml`.
+    """
+    fault_type = fault_config.get("type", "none")
+    percentage = fault_config.get("percentage", 100)
+    try:
+        percentage_val = float(percentage)
+    except Exception:
+        percentage_val = 100.0
+
+    # Determine file base name
+    suffix = fault_type if fault_type != "none" else "fault-injection"
+    yaml_name = f"{service_name}-{suffix}"
+    route_field = "  http:"
+    if (protocol or "http").lower() == "grpc":
+        route_field = "  http: # Istio HTTPRoute also handles gRPC/HTTP2 traffic"
+
+    if fault_type == "delay":
+        delay_s = fault_config.get("delay_s", 1.0)
+        return f"""apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {yaml_name}
+  namespace: {namespace}
+spec:
+  hosts:
+  - {service_name}
+{route_field}
+  - fault:
+      delay:
+        percentage:
+          value: {percentage_val}
+        fixedDelay: {delay_s}s
+    route:
+    - destination:
+        host: {service_name}
+"""
+    elif fault_type == "abort":
+        if protocol.lower() == "grpc":
+            grpc_status = fault_config.get("grpc_status") or "UNAVAILABLE"
+            return f"""apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {yaml_name}
+  namespace: {namespace}
+spec:
+  hosts:
+  - {service_name}
+{route_field}
+  - fault:
+      abort:
+        percentage:
+          value: {percentage_val}
+        grpcStatus: "{grpc_status}"
+    route:
+    - destination:
+        host: {service_name}
+"""
+        else:
+            try:
+                http_status = int(fault_config.get("http_status") or 503)
+            except Exception:
+                http_status = 503
+            return f"""apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {yaml_name}
+  namespace: {namespace}
+spec:
+  hosts:
+  - {service_name}
+{route_field}
+  - fault:
+      abort:
+        percentage:
+          value: {percentage_val}
+        httpStatus: {http_status}
+    route:
+    - destination:
+        host: {service_name}
+"""
+    return ""
+
+
+def apply_faults_for_service(
+    service: dict,
+    job_id: str,
+    step_num: int,
+    step_name: str,
+    cwd: str
+) -> bool:
+    """Apply or remove Istio fault injection VirtualService for a service across its clusters."""
+    service_name = service.get("name")
+    protocol = service.get("protocol", "http")
+    fault_config = service.get("fault_injection") or {}
+    fault_type = fault_config.get("type", "none")
+    
+    # Each service has a list of clusters
+    clusters = service.get("clusters", [])
+    if not clusters:
+        clusters = [{"cluster": "", "namespace": "default"}]
+        
+    success = True
+    for c in clusters:
+        context = c.get("cluster", "")
+        namespace = c.get("namespace", "default")
+        context_flag = f"--context {context}" if context else ""
+        
+        if fault_type != "none":
+            yaml_content = generate_virtual_service_yaml(service_name, protocol, fault_config, namespace)
+            if not yaml_content:
+                continue
+                
+            # Write YAML to a persistent file in the 'faults' directory
+            faults_dir = os.path.join(cwd, "faults")
+            os.makedirs(faults_dir, exist_ok=True)
+            file_name = f"{service_name}-{fault_type}.yaml"
+            file_path = os.path.join(faults_dir, file_name)
+            try:
+                with open(file_path, "w") as f:
+                    f.write(yaml_content)
+                cmd = f"kubectl apply {context_flag} -n {namespace} -f faults/{file_name}"
+                rc = run_command(cmd, cwd, job_id, step_num, step_name)
+                if rc != 0:
+                    success = False
+            except Exception as e:
+                _append_log(job_id, f"Error writing YAML for {service_name}: {e}", step_num, "ERROR")
+                success = False
+            # Do NOT delete the file; keep it for user reference
+
+        else:
+            # Delete if type is none
+            for f_type in ["delay", "abort"]:
+                cmd = f"kubectl delete virtualservice {service_name}-{f_type} {context_flag} -n {namespace} --ignore-not-found"
+                rc = run_command(cmd, cwd, job_id, step_num, step_name)
+                if rc != 0:
+                    success = False
+                
+    return success
+
+
 # ── Pipeline execution (runs in a background thread) ─────────────────────────
 def execute_pipeline(
     job_id: str,
@@ -139,6 +286,16 @@ def execute_pipeline(
     input_file = os.path.join(input_dir, "description.json")
 
     try:
+        # Determine total steps based on presence of fault injections
+        has_faults = False
+        for service in config.get("services", []):
+            fi = service.get("fault_injection") or {}
+            if fi.get("type", "none") != "none":
+                has_faults = True
+                break
+                
+        job_total_steps = 6 if has_faults else 5
+        jobs[job_id]["total_steps"] = job_total_steps
         # ── STEP 1: Save JSON ────────────────────────────────────────────────
         jobs[job_id]["current_step"] = 1
         jobs[job_id]["step_name"] = "Guardando archivo de configuración..."
@@ -243,10 +400,27 @@ def execute_pipeline(
 
         _append_log(job_id, "✓ Benchmark desplegado correctamente en Kubernetes", 5, "INFO")
 
+        # ── STEP 6: Apply Fault Injections ───────────────────────────────────
+        if has_faults:
+            jobs[job_id]["current_step"] = 6
+            jobs[job_id]["step_name"] = "Aplicando inyección de fallas en Kubernetes..."
+            _append_log(job_id, "Iniciando aplicación de inyección de fallas...", 6, "INFO")
+            
+            success = True
+            for service in config.get("services", []):
+                res = apply_faults_for_service(service, job_id, 6, "Aplicando inyección de fallas en Kubernetes...", backend_dir)
+                if not res:
+                    success = False
+                    
+            if not success:
+                raise RuntimeError("Falló la aplicación de inyección de fallas en uno o más servicios")
+                
+            _append_log(job_id, "✓ Inyección de fallas aplicada correctamente", 6, "INFO")
+
         # ── Done ─────────────────────────────────────────────────────────────
         jobs[job_id]["status"] = "completed"
         jobs[job_id]["step_name"] = "Pipeline completado exitosamente"
-        jobs[job_id]["current_step"] = TOTAL_STEPS
+        jobs[job_id]["current_step"] = job_total_steps
 
     except Exception as exc:
         cur_step = jobs[job_id].get("current_step", 0)
@@ -288,7 +462,8 @@ def execute(req: ExecuteRequest):
         "current_step": 0,
         "step_name": "Iniciando pipeline...",
         "error": None,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.utcnow(),
+        "total_steps": 5
     }
 
     t = threading.Thread(
@@ -316,7 +491,7 @@ def get_status(job_id: str):
         job_id=job_id,
         status=job["status"],
         current_step=job["current_step"],
-        total_steps=TOTAL_STEPS,
+        total_steps=job.get("total_steps", TOTAL_STEPS),
         step_name=job["step_name"],
         error=job.get("error")
     )
@@ -416,3 +591,60 @@ def stop_metrics():
         metrics_process = None
         return {"status": "stopped"}
     return {"status": "not_running"}
+
+
+@app.post("/apply-faults")
+def apply_faults(req: ApplyFaultsRequest):
+    # Directory to store generated fault YAML files
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    faults_dir = os.path.join(backend_dir, "faults")
+    os.makedirs(faults_dir, exist_ok=True)
+
+    # Clean existing YAML files in faults/ directory to prevent stale config files
+    for item in os.listdir(faults_dir):
+        if item.endswith(".yaml"):
+            try:
+                os.remove(os.path.join(faults_dir, item))
+            except Exception as e:
+                pass
+
+    services = req.config.get("services", [])
+    logs = []
+    success = True
+
+    for service in services:
+        service_name = service.get("name")
+        protocol = service.get("protocol", "http")
+        fault_config = service.get("fault_injection") or {}
+        fault_type = fault_config.get("type", "none")
+        
+        clusters = service.get("clusters", [])
+        if not clusters:
+            clusters = [{"cluster": "", "namespace": "default"}]
+            
+        for c in clusters:
+            namespace = c.get("namespace", "default")
+            
+            if fault_type != "none":
+                yaml_content = generate_virtual_service_yaml(service_name, protocol, fault_config, namespace)
+                if not yaml_content:
+                    continue
+                
+                file_name = f"{service_name}-{fault_type}.yaml"
+                file_path = os.path.join(faults_dir, file_name)
+                try:
+                    with open(file_path, "w") as f:
+                        f.write(yaml_content)
+                    logs.append(f"Archivo de falla generado: faults/{file_name}")
+                except Exception as e:
+                    logs.append(f"Error escribiendo YAML para {service_name}: {e}")
+                    success = False
+            else:
+                pass
+
+    return {
+        "status": "ok" if success else "error",
+        "message": "Archivos de fallas generados correctamente" if success else "Error al generar archivos de fallas",
+        "logs": logs
+    }
+

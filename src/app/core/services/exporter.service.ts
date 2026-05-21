@@ -7,6 +7,47 @@ import { HydraGenConfig, CalledService } from '../models/hydragen.model';
 export class ExporterService {
   constructor(private graphService: GraphService) { }
 
+  private buildResiliencePatterns(ep: any): any | null {
+    const rp = ep?.resilience_parameters || ep?.resilience_patterns || {};
+    const output: any = {};
+
+    if (rp.timeout) {
+      output.timeout = { duration: rp.timeout.duration_s ?? rp.timeout.duration };
+    }
+    if (rp.retry) {
+      output.exponential_backoff = {
+        initial: (rp.retry.backoff_ms ?? 100) / 1000,
+        max: (rp.retry.max_backoff_ms ?? 5000) / 1000,
+        multiplier: rp.retry.backoff_multiplier ?? 2.0,
+        max_attempts: rp.retry.max_attempts ?? 3
+      };
+    } else if (rp.exponential_backoff) {
+      output.exponential_backoff = { ...rp.exponential_backoff };
+    }
+    if (rp.fallback) {
+      const fb = rp.fallback;
+      output.fallback = {
+        type: fb.type || 'static',
+        ...(fb.type === 'static' ? {
+          response_code: fb.response_code ?? 200,
+          response_payload: fb.response_payload || 'fallback-response'
+        } : {
+          service: fb.service || 'fallback-service',
+          endpoint: fb.endpoint || 'fallback-endpoint',
+          port: fb.port ?? 80
+        })
+      };
+    }
+    if (rp.circuit_breaker) {
+      output.circuit_breaker = {
+        timeout: rp.circuit_breaker.timeout,
+        retry_timer: rp.circuit_breaker.retry_timer
+      };
+    }
+
+    return Object.keys(output).length > 0 ? output : null;
+  }
+
   private normalizeAnnotations(annotations: any): any[] | null {
     if (!annotations) return null;
     if (Array.isArray(annotations)) {
@@ -48,15 +89,21 @@ export class ExporterService {
       });
 
       // --- Service base ---
+      const serviceProtocol = nd.protocol || 'http';
       const service: any = {
         name: nd.name || 'unnamed-service',
-        protocol: nd.protocol || 'http',
+        protocol: serviceProtocol,
         clusters,
         resources: nd.resources || { limits: { cpu: '1000m', memory: '1024M' }, requests: { cpu: '500m', memory: '256M' } },
         processes: nd.processes ?? 0,
         readiness_probe: nd.readiness_probe ?? 2
       };
       if (nd.base_image) service.base_image = nd.base_image;
+      if (nd.fault_injection) {
+        service.fault_injection = {
+          ...nd.fault_injection
+        };
+      }
 
       // --- Outgoing edges for this node ---
       const outEdges = allEdges.filter(e => e.getSourceCellId() === node.id);
@@ -80,50 +127,19 @@ export class ExporterService {
             service: tgtData.name || 'unknown',
             endpoint: ed.targetEndpoint || (tgtData.endpoints?.[0]?.name) || 'end1',
             port: ed.port ?? 80,
-            protocol: ed.protocol || tgtData.protocol || 'http',
+            protocol: serviceProtocol,
             traffic_forward_ratio: ed.traffic_forward_ratio ?? 1,
             request_payload_size: ed.request_payload_size ?? 0,
             active_circuit_breaker: ed.active_circuit_breaker === true
           };
 
+          const resiliencePatterns = this.buildResiliencePatterns(ep);
+          if (resiliencePatterns) {
+            cs.resilience_patterns = resiliencePatterns;
+          }
+
           return cs;
         });
-
-        // Build Resilience Parameters for the ENDPOINT
-        const rp = (ep as any).resilience_parameters || (ep as any).resilience_patterns || {};
-        const outputRp: any = {};
-
-        if (rp.timeout) {
-          outputRp.timeout = { duration: rp.timeout.duration_s };
-        }
-        if (rp.retry) {
-          outputRp.exponential_backoff = {
-            initial: (rp.retry.backoff_ms || 100) / 1000,
-            max: (rp.retry.max_backoff_ms || 5000) / 1000,
-            multiplier: rp.retry.backoff_multiplier || 2.0,
-            max_attempts: rp.retry.max_attempts || 3
-          };
-        }
-        if (rp.fallback) {
-          const fb = rp.fallback;
-          outputRp.fallback = {
-            type: fb.type || 'static',
-            ...(fb.type === 'static' ? {
-              response_code: fb.response_code ?? 200,
-              response_payload: fb.response_payload || 'fallback-response'
-            } : {
-              service: fb.service || 'fallback-service',
-              endpoint: fb.endpoint || 'fallback-endpoint',
-              port: fb.port ?? 80
-            })
-          };
-        }
-        if (rp.circuit_breaker) {
-          outputRp.circuit_breaker = {
-            timeout: rp.circuit_breaker.timeout,
-            retry_timer: rp.circuit_breaker.retry_timer
-          };
-        }
 
         // Build endpoint output
         const endpointOutput: any = {
@@ -139,10 +155,6 @@ export class ExporterService {
             called_services: calledServices
           }
         };
-
-        if (Object.keys(outputRp).length > 0) {
-          endpointOutput.resilience_parameters = outputRp;
-        }
 
         return endpointOutput;
       });

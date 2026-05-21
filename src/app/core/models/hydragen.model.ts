@@ -25,6 +25,14 @@ export interface ClusterLatency {
   latency: number;
 }
 
+export interface FaultInjectionConfig {
+  type: 'delay' | 'abort' | 'none';
+  percentage: number;
+  delay_s?: number;
+  http_status?: number;
+  grpc_status?: string;
+}
+
 export interface Service {
   name: string;
   protocol: 'http' | 'grpc';
@@ -37,7 +45,7 @@ export interface Service {
   development?: boolean;
   base_image?: string;
   endpoints: Endpoint[];
-  // resilience_patterns is at ENDPOINT level, NOT service level
+  fault_injection?: FaultInjectionConfig;
 }
 
 export interface ClusterConfig {
@@ -67,6 +75,7 @@ export interface Endpoint {
   execution_mode: 'sequential' | 'parallel';
   cpu_complexity: CpuComplexity;
   network_complexity: NetworkComplexity;
+  resilience_patterns?: ResiliencePatterns;
   resilience_parameters?: ResiliencePatterns; // ← at endpoint level
 }
 
@@ -89,4 +98,5 @@ export interface CalledService {
   traffic_forward_ratio: number;
   request_payload_size: number;
   active_circuit_breaker?: boolean;
+  resilience_patterns?: ResiliencePatterns;
 }

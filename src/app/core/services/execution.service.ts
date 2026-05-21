@@ -62,6 +62,14 @@ export class ExecutionService {
     return this.http.post<any>(`${this.API_URL}/cancel/${jobId}`, {});
   }
 
+  /** POST /apply-faults — apply configured fault injections to architecture */
+  applyFaults(config: any, sudoPassword = ''): Observable<{ status: string; message: string; logs: string[] }> {
+    return this.http.post<{ status: string; message: string; logs: string[] }>(`${this.API_URL}/apply-faults`, {
+      config,
+      sudo_password: sudoPassword
+    });
+  }
+
   /** GET /status/{jobId} — one-shot status poll */
   getStatus(jobId: string): Observable<ExecutionStatus> {
     return this.http.get<ExecutionStatus>(`${this.API_URL}/status/${jobId}`);

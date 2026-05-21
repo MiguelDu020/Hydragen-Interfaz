@@ -6,6 +6,7 @@ import { GraphService } from '../../../core/services/graph.service';
 import { HydraGenConfig } from '../../../core/models/hydragen.model';
 import { ExecutionModalComponent } from '../../../features/execution-modal/execution-modal.component';
 import { ThemeService } from '../../../core/services/theme.service';
+import { ExecutionService } from '../../../core/services/execution.service';
 
 @Component({
   selector: 'app-toolbar',
@@ -43,6 +44,21 @@ import { ThemeService } from '../../../core/services/theme.service';
         <div class="separator"></div>
 
         <button
+          *ngIf="hasFaults"
+          class="btn faults-apply"
+          (click)="applyFaultInjections()"
+          [disabled]="applyingFaults"
+          [title]="applyingFaults ? 'Aplicando inyecciones de fallas...' : 'Aplicar inyección de fallas a la arquitectura desplegada'"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          {{ applyingFaults ? 'Aplicando...' : 'Aplicar Fallas' }}
+        </button>
+
+        <button
           class="btn execute"
           id="btn-execute-benchmark"
           (click)="openExecutionModal()"
@@ -73,6 +89,11 @@ import { ThemeService } from '../../../core/services/theme.service';
       *ngIf="showExecutionModal"
       (closed)="showExecutionModal = false"
     ></app-execution-modal>
+
+    <!-- Toast Notification -->
+    <div class="toast" *ngIf="showToast" [class.error]="toastType === 'error'">
+      {{ toastMessage }}
+    </div>
   `,
   styles: [`
     :host { display: block; background: var(--bg-card); border-bottom: 1px solid var(--border-color); }
@@ -129,6 +150,20 @@ import { ThemeService } from '../../../core/services/theme.service';
         }
         &:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
       }
+      &.faults-apply {
+        border-color: #f59e0b;
+        color: #fff;
+        background: linear-gradient(135deg, #d97706, #f59e0b);
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, #ea580c, #d97706);
+          box-shadow: 0 0 14px rgba(245,158,11,0.4);
+        }
+        &:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+      }
     }
     .separator {
       width: 1px;
@@ -142,17 +177,41 @@ import { ThemeService } from '../../../core/services/theme.service';
       color: var(--text-secondary);
       &:hover { color: var(--text-primary); background: var(--bg-surface); }
     }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px; border-radius: 8px; font-size: 13px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      animation: fadeInUp 0.2s ease; white-space: nowrap;
+      background: #0f3d24; border: 1px solid #22c55e; color: #bbf7d0;
+      z-index: 9999;
+    }
+    .toast.error {
+      background: #450a0a; border: 1px solid #f87171; color: #fecaca;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
   `]
 })
 export class ToolbarComponent {
   @Output() openPreview = new EventEmitter<void>();
 
   showExecutionModal = false;
+  applyingFaults = false;
+
+  showToast = false;
+  toastMessage = '';
+  toastType: 'success' | 'error' = 'success';
+  private toastTimer: any;
 
   constructor(
     private exporterService: ExporterService,
     private graphService: GraphService,
-    private themeService: ThemeService
+    private themeService: ThemeService,
+    private executionService: ExecutionService
   ) { }
 
   get isDark(): boolean {
@@ -170,6 +229,52 @@ export class ToolbarComponent {
 
   openExecutionModal(): void {
     if (this.hasNodes) this.showExecutionModal = true;
+  }
+
+  get hasFaults(): boolean {
+    const g = this.graphService.getGraph();
+    if (!g) return false;
+    return g.getNodes().some(n => {
+      const data = n.getData() || {};
+      return data.fault_injection && data.fault_injection.type && data.fault_injection.type !== 'none';
+    });
+  }
+
+  applyFaultInjections(): void {
+    if (this.applyingFaults) return;
+    this.applyingFaults = true;
+
+    let config: any;
+    try {
+      config = this.exporterService.generateConfig();
+    } catch (e: any) {
+      this.applyingFaults = false;
+      this.toastMessage = 'Error al generar la configuración: ' + e.message;
+      this.toastType = 'error';
+      this.showToast = true;
+      clearTimeout(this.toastTimer);
+      this.toastTimer = setTimeout(() => { this.showToast = false; }, 4000);
+      return;
+    }
+
+    this.executionService.applyFaults(config).subscribe({
+      next: (res) => {
+        this.applyingFaults = false;
+        this.toastMessage = 'Archivos de fallas generados correctamente';
+        this.toastType = 'success';
+        this.showToast = true;
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => { this.showToast = false; }, 3000);
+      },
+      error: (err) => {
+        this.applyingFaults = false;
+        this.toastMessage = 'Error al generar archivos de fallas: ' + (err.error?.detail || err.message || 'No se pudo conectar al backend.');
+        this.toastType = 'error';
+        this.showToast = true;
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => { this.showToast = false; }, 4000);
+      }
+    });
   }
 
   undo() {

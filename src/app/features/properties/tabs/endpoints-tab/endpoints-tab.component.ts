@@ -96,10 +96,7 @@ import { GraphService } from '../../../../core/services/graph.service';
                 </div>
                 <div class="field">
                   <label>Protocolo</label>
-                  <select [ngModel]="row.edgeData.protocol" (ngModelChange)="updateEdge(row.edge, 'protocol', $event)">
-                    <option value="http">HTTP</option>
-                    <option value="grpc">gRPC</option>
-                  </select>
+                  <div class="readonly-value">{{ currentProtocol.toUpperCase() }}</div>
                 </div>
                 <div class="field">
                   <label>Traffic Ratio</label>
@@ -320,6 +317,17 @@ import { GraphService } from '../../../../core/services/graph.service';
       label { font-size: 10px; color: $text-secondary; }
       input, select { width: 100%; font-size: 12px; padding: 5px 8px; }
     }
+    .readonly-value {
+      width: 100%;
+      min-height: 28px;
+      padding: 6px 8px;
+      border: 1px solid $border-color;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.03);
+      color: $text-secondary;
+      font-size: 12px;
+      font-family: monospace;
+    }
 
     .empty-edges { font-size: 11px; color: $text-secondary; padding: 6px 0; }
 
@@ -441,6 +449,7 @@ import { GraphService } from '../../../../core/services/graph.service';
 export class EndpointsTabComponent implements OnChanges {
   @Input() nodeData: any = {};
   @Input() nodeId: string = '';
+  @Input() graphRevision = 0;
   @Output() dataChange = new EventEmitter<any>();
 
   endpoints: any[] = [];
@@ -448,6 +457,10 @@ export class EndpointsTabComponent implements OnChanges {
   expandedIdx: number | null = 0;
 
   constructor(private graphService: GraphService) { }
+
+  get currentProtocol(): 'http' | 'grpc' {
+    return this.nodeData.protocol || 'http';
+  }
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
@@ -465,6 +478,9 @@ export class EndpointsTabComponent implements OnChanges {
       }
     }
     if (changes['nodeId'] && this.nodeId) {
+      this.refreshAllEdges();
+    }
+    if (changes['graphRevision'] && !changes['graphRevision'].firstChange) {
       this.refreshAllEdges();
     }
   }

@@ -12,6 +12,7 @@ import { ResourcesTabComponent }  from '../tabs/resources-tab/resources-tab.comp
 import { ClustersTabComponent }   from '../tabs/clusters-tab/clusters-tab.component';
 import { EndpointsTabComponent }  from '../tabs/endpoints-tab/endpoints-tab.component';
 import { ResilienceTabComponent } from '../tabs/resilience-tab/resilience-tab.component';
+import { FaultTabComponent }      from '../tabs/fault-tab/fault-tab.component';
 
 type PanelMode = 'node' | 'edge' | 'global';
 
@@ -22,7 +23,7 @@ type PanelMode = 'node' | 'edge' | 'global';
     CommonModule, FormsModule,
     GeneralTabComponent, ResourcesTabComponent,
     ClustersTabComponent, EndpointsTabComponent,
-    ResilienceTabComponent
+    ResilienceTabComponent, FaultTabComponent
   ],
   template: `
     <!-- ═══════════════════════════════════════ NODE PANEL ════════════════ -->
@@ -44,13 +45,15 @@ type PanelMode = 'node' | 'edge' | 'global';
           <button [class.active]="activeTab==='resources'"  (click)="activeTab='resources'">Resources</button>
           <button [class.active]="activeTab==='endpoints'"  (click)="activeTab='endpoints'">Endpoints</button>
           <button [class.active]="activeTab==='resilience'" (click)="activeTab='resilience'">Resilience</button>
+          <button [class.active]="activeTab==='faults'"     (click)="activeTab='faults'">Fallas</button>
         </div>
 
         <div class="tab-content">
           <app-general-tab    *ngIf="activeTab==='general'"    [nodeData]="pendingData" [availableClusters]="settings.clusters" (dataChange)="pendingData=$event" (goToGlobalSettings)="setMode('global')" ></app-general-tab>
           <app-resources-tab  *ngIf="activeTab==='resources'"  [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-resources-tab>
-          <app-endpoints-tab  *ngIf="activeTab==='endpoints'"  [nodeData]="pendingData" [nodeId]="selectedNode!.id" (dataChange)="pendingData=$event"></app-endpoints-tab>
+          <app-endpoints-tab  *ngIf="activeTab==='endpoints'"  [nodeData]="pendingData" [nodeId]="selectedNode!.id" [graphRevision]="graphRevision" (dataChange)="pendingData=$event"></app-endpoints-tab>
           <app-resilience-tab *ngIf="activeTab==='resilience'" [nodeData]="pendingData" (goToEndpoints)="activeTab='endpoints'"></app-resilience-tab>
+          <app-fault-tab      *ngIf="activeTab==='faults'"     [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-fault-tab>
         </div>
 
         <div class="footer">
@@ -85,18 +88,9 @@ type PanelMode = 'node' | 'edge' | 'global';
             <label>Endpoint destino</label>
             <input type="text" [(ngModel)]="edgeData.targetEndpoint" (ngModelChange)="applyEdgeData()" placeholder="end1" />
           </div>
-          <div class="field-row">
-            <div class="field">
-              <label>Puerto</label>
-              <input type="number" [(ngModel)]="edgeData.port" (ngModelChange)="applyEdgeData()" />
-            </div>
-            <div class="field">
-              <label>Protocolo</label>
-              <select [(ngModel)]="edgeData.protocol" (ngModelChange)="applyEdgeData()">
-                <option value="http">HTTP</option>
-                <option value="grpc">gRPC</option>
-              </select>
-            </div>
+          <div class="field">
+            <label>Puerto</label>
+            <input type="number" [(ngModel)]="edgeData.port" (ngModelChange)="applyEdgeData()" />
           </div>
           <div class="field-row">
             <div class="field">
@@ -399,6 +393,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   // Global
   settings: GlobalSettings = { logging: true, development: true, base_image: '', clusters: [] };
   clusterLatencies: ClusterLatency[] = [];
+  graphRevision = 0;
 
   private subs = new Subscription();
 
@@ -443,6 +438,10 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
       }
       this.cdr.detectChanges();
     }));
+
+    this.subs.add(this.graphService.graphChanged$.subscribe(() => {
+      this.handleGraphChanged();
+    }));
   }
 
   ngOnDestroy() { this.subs.unsubscribe(); }
@@ -456,11 +455,64 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   /* ═══════════ Node ═══════════ */
   applyNodeData() {
     if (!this.selectedNode) return;
-    console.log(this.pendingData)
     this.selectedNode.setData(this.pendingData, { overwrite: true });
+    this.syncEndpointProtocols(this.pendingData.protocol || 'http');
     this.graphService.refreshNodeVisuals(this.selectedNode);
     this.graphService.notifyApply();
     this.cdr.detectChanges();
+  }
+
+  private handleGraphChanged() {
+    this.graphRevision++;
+
+    if (this.selectedNode && !this.cellExists(this.selectedNode.id)) {
+      this.clearSelection();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (this.selectedEdge && !this.cellExists(this.selectedEdge.id)) {
+      this.clearSelection();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (this.selectedEdge) {
+      this.edgeData = { ...(this.selectedEdge.getData() ?? {}) };
+      this.loadSourceEndpoints(this.selectedEdge);
+    }
+
+    this.cdr.detectChanges();
+  }
+
+  private cellExists(cellId: string): boolean {
+    const graph = this.graphService.getGraph();
+    if (!graph) return false;
+    try {
+      return !!graph.getCellById(cellId);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  private clearSelection() {
+    this.selectedNode = null;
+    this.selectedEdge = null;
+    this.pendingData = {};
+    this.edgeData = {};
+    this.sourceEndpoints = [];
+    this.mode = 'global';
+    this.settings = this.graphService.getSettings();
+    if (!this.settings.clusters) this.settings.clusters = [];
+    this.clusterLatencies = [...this.graphService.getClusterLatencies()];
+  }
+
+  private syncEndpointProtocols(protocol: 'http' | 'grpc') {
+    const graph = this.graphService.getGraph();
+    if (!graph || !this.selectedNode) return;
+    graph.getEdges()
+      .filter(edge => edge.getSourceCellId() === this.selectedNode!.id)
+      .forEach(edge => edge.prop('data/protocol', protocol));
   }
 
   /* ═══════════ Edge ═══════════ */
@@ -482,13 +534,16 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   }
 
   sourceEndpointHasTimeout(): boolean {
-    return this.getSourceEndpointData()?.resilience_patterns?.timeout != null;
+    const rp = this.getSourceEndpointData()?.resilience_parameters || this.getSourceEndpointData()?.resilience_patterns;
+    return rp?.timeout != null;
   }
   sourceEndpointHasRetry(): boolean {
-    return this.getSourceEndpointData()?.resilience_patterns?.retry != null;
+    const rp = this.getSourceEndpointData()?.resilience_parameters || this.getSourceEndpointData()?.resilience_patterns;
+    return rp?.retry != null || rp?.exponential_backoff != null;
   }
   sourceEndpointHasFallback(): boolean {
-    return this.getSourceEndpointData()?.resilience_patterns?.fallback != null;
+    const rp = this.getSourceEndpointData()?.resilience_parameters || this.getSourceEndpointData()?.resilience_patterns;
+    return rp?.fallback != null;
   }
 
   private getSourceEndpointData(): any {

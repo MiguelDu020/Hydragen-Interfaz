@@ -25,6 +25,10 @@ export class GraphService {
   private edgeSelectedSource = new Subject<Edge | null>();
   edgeSelected$ = this.edgeSelectedSource.asObservable();
 
+  private graphChangedSource = new Subject<void>();
+  graphChanged$ = this.graphChangedSource.asObservable();
+  notifyGraphChanged() { this.graphChangedSource.next(); }
+
   // ── Apply confirmation event ──────────────────────────────────────────────
   private applyConfirmedSource = new Subject<void>();
   applyConfirmed$ = this.applyConfirmedSource.asObservable();
@@ -47,6 +51,18 @@ export class GraphService {
       this.nodeSelectedSource.next(null);
       this.edgeSelectedSource.next(null);
     });
+
+    [
+      'cell:added',
+      'cell:removed',
+      'edge:connected',
+      'edge:change:source',
+      'edge:change:target',
+      'edge:change:data',
+      'node:change:data'
+    ].forEach(eventName => {
+      this.graph!.on(eventName as any, () => this.notifyGraphChanged());
+    });
   }
 
   getGraph(): Graph | null { return this.graph; }
@@ -65,12 +81,14 @@ export class GraphService {
       logging: true,
       development: true
     };
+    this.notifyGraphChanged();
   }
 
   getClusterLatencies(): ClusterLatency[] { return this.clusterLatencies; }
 
   setClusterLatencies(latencies: ClusterLatency[]) {
     this.clusterLatencies = latencies || [];
+    this.notifyGraphChanged();
   }
 
   /** Recalculates node visual attrs from its current data */
@@ -83,6 +101,9 @@ export class GraphService {
     if (endpoints.some((ep: any) => ep.resilience_parameters?.retry)) badges.push('RT');
     if (endpoints.some((ep: any) => ep.resilience_parameters?.fallback)) badges.push('FB');
     if (endpoints.some((ep: any) => ep.resilience_parameters?.circuit_breaker)) badges.push('CB');
+    if (data.fault_injection && data.fault_injection.type && data.fault_injection.type !== 'none') {
+      badges.push('FI');
+    }
 
     const name = data.name || 'Service';
     const protocol = (data.protocol || 'http').toUpperCase();
@@ -138,6 +159,7 @@ export class GraphService {
               };
             }
             if (rp.fallback) newRp.fallback = { ...rp.fallback };
+            if (rp.circuit_breaker) newRp.circuit_breaker = { ...rp.circuit_breaker };
             epData.resilience_parameters = newRp;
           }
         } else {
@@ -151,6 +173,9 @@ export class GraphService {
       if (endpoints.some((ep: any) => ep.resilience_parameters?.retry)) badges.push('RT');
       if (endpoints.some((ep: any) => ep.resilience_parameters?.fallback)) badges.push('FB');
       if (endpoints.some((ep: any) => ep.resilience_parameters?.circuit_breaker)) badges.push('CB');
+      if (service.fault_injection && service.fault_injection.type && service.fault_injection.type !== 'none') {
+        badges.push('FI');
+      }
 
       const node = this.graph!.addNode({
         x, y, width: 260, height: 130, shape: 'service-node',
@@ -164,7 +189,8 @@ export class GraphService {
           readiness_probe: service.readiness_probe,
           replicas: (service as any).replicas ?? (service.clusters?.[0] as any)?.replicas ?? 1,
           base_image: service.base_image || '',
-          endpoints
+          endpoints,
+          fault_injection: (service as any).fault_injection
         },
         attrs: {
           divider: { x1: 0, y1: 42, x2: 260, y2: 42, stroke: 'var(--node-divider)', strokeWidth: 1 },
@@ -205,18 +231,20 @@ export class GraphService {
                 sourceEndpoint: endpoint.name,
                 targetEndpoint: called.endpoint,
                 port: called.port,
-                protocol: called.protocol,
+                protocol: service.protocol || 'http',
                 traffic_forward_ratio: called.traffic_forward_ratio,
                 request_payload_size: called.request_payload_size,
-                active_circuit_breaker: called.active_circuit_breaker || !!(endpoint as any).resilience_parameters?.circuit_breaker || !!(endpoint as any).resilience_patterns?.circuit_breaker,
-                active_timeout: (called as any).active_timeout || !!(called as any).resilience_parameters?.timeout || !!(called as any).resilience_patterns?.timeout,
-                active_retry: (called as any).active_retry || !!((called as any).resilience_parameters as any)?.exponential_backoff || !!((called as any).resilience_patterns as any)?.exponential_backoff,
-                active_fallback: (called as any).active_fallback || !!(called as any).resilience_parameters?.fallback || !!(called as any).resilience_patterns?.fallback
+                active_circuit_breaker: called.active_circuit_breaker || !!(called as any).resilience_patterns?.circuit_breaker || !!(called as any).resilience_parameters?.circuit_breaker,
+                active_timeout: (called as any).active_timeout || !!(called as any).resilience_patterns?.timeout || !!(called as any).resilience_parameters?.timeout,
+                active_retry: (called as any).active_retry || !!(called as any).resilience_patterns?.exponential_backoff || !!(called as any).resilience_parameters?.exponential_backoff,
+                active_fallback: (called as any).active_fallback || !!(called as any).resilience_patterns?.fallback || !!(called as any).resilience_parameters?.fallback
               }
             });
           }
         });
       });
     });
+
+    this.notifyGraphChanged();
   }
 }
