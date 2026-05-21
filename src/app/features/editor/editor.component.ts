@@ -149,13 +149,15 @@ export class EditorComponent implements AfterViewInit, OnDestroy {
     // Menú contextual
     this.graph.on('node:contextmenu', ({ node, x, y, e }) => {
       e.preventDefault();
-      const local = this.graph.localToClient(x, y);
-      this.ctxMenu = { visible: true, x: local.x, y: local.y, type: 'node', cell: node };
+      const client = this.graph.localToClient(x, y);
+      const rect = this.canvasContainer.nativeElement.getBoundingClientRect();
+      this.ctxMenu = { visible: true, x: client.x - rect.left, y: client.y - rect.top, type: 'node', cell: node };
     });
     this.graph.on('edge:contextmenu', ({ edge, x, y, e }) => {
       e.preventDefault();
-      const local = this.graph.localToClient(x, y);
-      this.ctxMenu = { visible: true, x: local.x, y: local.y, type: 'edge', cell: edge };
+      const client = this.graph.localToClient(x, y);
+      const rect = this.canvasContainer.nativeElement.getBoundingClientRect();
+      this.ctxMenu = { visible: true, x: client.x - rect.left, y: client.y - rect.top, type: 'edge', cell: edge };
     });
     this.graph.on('blank:click', () => this.closeCtxMenu());
 

@@ -137,7 +137,7 @@ import { GraphService } from '../../../../core/services/graph.service';
           </ng-container>
 
           <!-- Resilience Patterns -->
-          <div class="subsection-title">Resilience Patterns</div>
+          <div class="subsection-title">Resilience Patterns <span class="pattern-warn-icon" data-tooltip="Timeout, Retry y Circuit Breaker no se pueden usar juntos. Solo uno puede estar activo a la vez. Fallback es compatible con todos.">⚠</span></div>
 
           <!-- TIMEOUT -->
           <div class="pattern-block">
@@ -360,6 +360,74 @@ import { GraphService } from '../../../../core/services/graph.service';
     .pattern-fields {
       padding: 10px; background: var(--bg-primary);
       display: flex; flex-direction: column; gap: 8px;
+    }
+
+    .pattern-warn-icon {
+      display: inline-block;
+      font-size: 12px;
+      color: var(--warning);
+      opacity: 0.6;
+      cursor: default;
+      position: relative;
+      margin-left: 4px;
+      vertical-align: text-top;
+      top: -3px;
+      transition: opacity 0.2s ease;
+
+      &:hover {
+        opacity: 1;
+      }
+
+      /* Tooltip arrow */
+      &::before {
+        content: '';
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 5px solid transparent;
+        border-top-color: var(--bg-surface);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+
+      /* Tooltip body */
+      &::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) translateY(4px);
+        width: max-content;
+        max-width: 220px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 11px;
+        font-weight: 400;
+        font-family: 'Inter', sans-serif;
+        line-height: 1.5;
+        letter-spacing: 0;
+        text-transform: none;
+        white-space: normal;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+      }
+
+      &:hover::before {
+        opacity: 1;
+      }
+
+      &:hover::after {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
     }
 
     .btn-add-ep {
