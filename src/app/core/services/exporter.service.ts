@@ -65,7 +65,7 @@ export class ExporterService {
     }));
   }
 
-  generateConfig(): HydraGenConfig {
+  generateConfig(options: { includeFaults?: boolean } = {}): HydraGenConfig {
     const graph = this.graphService.getGraph();
     if (!graph) throw new Error('Graph not initialized');
 
@@ -99,7 +99,7 @@ export class ExporterService {
         readiness_probe: nd.readiness_probe ?? 2
       };
       if (nd.base_image) service.base_image = nd.base_image;
-      if (nd.fault_injection) {
+      if (options.includeFaults && nd.fault_injection) {
         service.fault_injection = {
           ...nd.fault_injection
         };

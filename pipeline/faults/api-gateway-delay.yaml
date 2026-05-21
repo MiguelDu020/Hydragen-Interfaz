@@ -1,12 +1,12 @@
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: si-delay
+  name: api-gateway-delay
   namespace: hydragen
 spec:
   hosts:
-  - si
-  http: # Istio HTTPRoute also handles gRPC/HTTP2 traffic
+  - api-gateway
+  http:
   - fault:
       delay:
         percentage:
@@ -14,4 +14,4 @@ spec:
         fixedDelay: 3s
     route:
     - destination:
-        host: si
+        host: api-gateway

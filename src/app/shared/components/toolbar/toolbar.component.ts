@@ -246,7 +246,7 @@ export class ToolbarComponent {
 
     let config: any;
     try {
-      config = this.exporterService.generateConfig();
+      config = this.exporterService.generateConfig({ includeFaults: true });
     } catch (e: any) {
       this.applyingFaults = false;
       this.toastMessage = 'Error al generar la configuración: ' + e.message;

@@ -286,15 +286,7 @@ def execute_pipeline(
     input_file = os.path.join(input_dir, "description.json")
 
     try:
-        # Determine total steps based on presence of fault injections
-        has_faults = False
-        for service in config.get("services", []):
-            fi = service.get("fault_injection") or {}
-            if fi.get("type", "none") != "none":
-                has_faults = True
-                break
-                
-        job_total_steps = 6 if has_faults else 5
+        job_total_steps = 5
         jobs[job_id]["total_steps"] = job_total_steps
         # ── STEP 1: Save JSON ────────────────────────────────────────────────
         jobs[job_id]["current_step"] = 1
@@ -399,23 +391,6 @@ def execute_pipeline(
             raise RuntimeError(f"deploy.sh falló con código de salida {rc}")
 
         _append_log(job_id, "✓ Benchmark desplegado correctamente en Kubernetes", 5, "INFO")
-
-        # ── STEP 6: Apply Fault Injections ───────────────────────────────────
-        if has_faults:
-            jobs[job_id]["current_step"] = 6
-            jobs[job_id]["step_name"] = "Aplicando inyección de fallas en Kubernetes..."
-            _append_log(job_id, "Iniciando aplicación de inyección de fallas...", 6, "INFO")
-            
-            success = True
-            for service in config.get("services", []):
-                res = apply_faults_for_service(service, job_id, 6, "Aplicando inyección de fallas en Kubernetes...", backend_dir)
-                if not res:
-                    success = False
-                    
-            if not success:
-                raise RuntimeError("Falló la aplicación de inyección de fallas en uno o más servicios")
-                
-            _append_log(job_id, "✓ Inyección de fallas aplicada correctamente", 6, "INFO")
 
         # ── Done ─────────────────────────────────────────────────────────────
         jobs[job_id]["status"] = "completed"

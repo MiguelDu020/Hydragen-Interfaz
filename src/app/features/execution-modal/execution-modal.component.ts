@@ -117,15 +117,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
   }
 
   hasFaultInjections(): boolean {
-    try {
-      const config = this.exporterService.generateConfig();
-      if (!config || !config.services) return false;
-      return config.services.some((s: any) =>
-        s.fault_injection && s.fault_injection.type && s.fault_injection.type !== 'none'
-      );
-    } catch (e) {
-      return false;
-    }
+    return false;
   }
 
   initializeSteps(): void {
