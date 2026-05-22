@@ -134,127 +134,136 @@ import { GraphService } from '../../../../core/services/graph.service';
           </ng-container>
 
           <!-- Resilience Patterns -->
-          <div class="subsection-title">Resilience Patterns <span class="pattern-warn-icon" data-tooltip="Timeout, Retry y Circuit Breaker no se pueden usar juntos. Solo uno puede estar activo a la vez. Fallback es compatible con todos.">⚠</span></div>
+          <ng-container *ngIf="hasOutgoingConnections(); else noOutgoing">
+            <div class="subsection-title">Resilience Patterns <span class="pattern-warn-icon" data-tooltip="Timeout, Retry y Circuit Breaker no se pueden usar juntos. Solo uno puede estar activo a la vez. Fallback es compatible con todos.">⚠</span></div>
 
-          <!-- TIMEOUT -->
-          <div class="pattern-block">
-            <label class="pattern-toggle">
-              <input type="checkbox" [checked]="!!ep.resilience_parameters?.timeout" (change)="togglePattern(ep, 'timeout', $event)" />
-              <span class="to-label">Timeout</span>
-            </label>
-            <div class="pattern-fields" *ngIf="ep.resilience_parameters?.timeout">
-              <div class="field">
-                <label>Duration (s)</label>
-                <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.timeout!.duration_s" (ngModelChange)="emit()" />
-              </div>
-            </div>
-          </div>
-
-          <!-- RETRY -->
-          <div class="pattern-block">
-            <label class="pattern-toggle">
-              <input type="checkbox" [checked]="!!ep.resilience_parameters?.retry" (change)="togglePattern(ep, 'retry', $event)" />
-              <span class="rt-label">Retry</span>
-            </label>
-            <div class="pattern-fields" *ngIf="ep.resilience_parameters?.retry">
-              <div class="field-row">
+            <!-- TIMEOUT -->
+            <div class="pattern-block">
+              <label class="pattern-toggle">
+                <input type="checkbox" [checked]="!!ep.resilience_parameters?.timeout" (change)="togglePattern(ep, 'timeout', $event)" />
+                <span class="to-label">Timeout</span>
+              </label>
+              <div class="pattern-fields" *ngIf="ep.resilience_parameters?.timeout">
                 <div class="field">
-                  <label>Max Attempts</label>
-                  <input type="number" min="1" [(ngModel)]="ep.resilience_parameters!.retry!.max_attempts" (ngModelChange)="emit()" />
-                </div>
-                <div class="field">
-                  <label>Backoff (ms)</label>
-                  <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.retry!.backoff_ms" (ngModelChange)="emit()" />
-                </div>
-                <div class="field">
-                  <label>Multiplicador</label>
-                  <input type="number" step="0.1" min="1" [(ngModel)]="ep.resilience_parameters!.retry!.backoff_multiplier" (ngModelChange)="emit()" />
-                </div>
-                <div class="field">
-                  <label>Max Backoff (ms)</label>
-                  <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.retry!.max_backoff_ms" (ngModelChange)="emit()" />
+                  <label>Duration (s)</label>
+                  <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.timeout!.duration_s" (ngModelChange)="emit()" />
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- FALLBACK -->
-          <div class="pattern-block">
-            <label class="pattern-toggle">
-              <input type="checkbox" [checked]="!!ep.resilience_parameters?.fallback" (change)="togglePattern(ep, 'fallback', $event)" />
-              <span class="fb-label">Fallback</span>
-            </label>
-            <div class="pattern-fields" *ngIf="ep.resilience_parameters?.fallback">
-              <div class="field">
-                <label>Tipo de Fallback</label>
-                <select [(ngModel)]="ep.resilience_parameters!.fallback!.type" (ngModelChange)="emit()">
-                  <option value="static">Static (Respuesta fija)</option>
-                  <option value="service">Service (Redirigir a otro servicio)</option>
-                </select>
-              </div>
-
-              <!-- STATIC FIELDS -->
-              <ng-container *ngIf="ep.resilience_parameters!.fallback!.type === 'static'">
+            <!-- RETRY -->
+            <div class="pattern-block">
+              <label class="pattern-toggle">
+                <input type="checkbox" [checked]="!!ep.resilience_parameters?.retry" (change)="togglePattern(ep, 'retry', $event)" />
+                <span class="rt-label">Retry</span>
+              </label>
+              <div class="pattern-fields" *ngIf="ep.resilience_parameters?.retry">
                 <div class="field-row">
                   <div class="field">
-                    <label>Código de respuesta</label>
-                    <input type="number" [(ngModel)]="ep.resilience_parameters!.fallback!.response_code" (ngModelChange)="emit()" />
+                    <label>Max Attempts</label>
+                    <input type="number" min="1" [(ngModel)]="ep.resilience_parameters!.retry!.max_attempts" (ngModelChange)="emit()" />
                   </div>
                   <div class="field">
-                    <label>Payload de respuesta</label>
-                    <input type="text" [(ngModel)]="ep.resilience_parameters!.fallback!.response_payload" (ngModelChange)="emit()" placeholder="fallback-response" />
-                  </div>
-                </div>
-              </ng-container>
-
-              <!-- SERVICE FIELDS -->
-              <ng-container *ngIf="ep.resilience_parameters!.fallback!.type === 'service'">
-                <div class="field-row">
-                  <div class="field">
-                    <label>Servicio Destino</label>
-                    <select [(ngModel)]="ep.resilience_parameters!.fallback!.service" (ngModelChange)="onFallbackServiceChange(ep)">
-                      <option [value]="undefined" disabled>Seleccionar servicio...</option>
-                      <option *ngFor="let s of getUniqueTargetServices(ep.name)" [value]="s">{{ s }}</option>
-                    </select>
+                    <label>Backoff (ms)</label>
+                    <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.retry!.backoff_ms" (ngModelChange)="emit()" />
                   </div>
                   <div class="field">
-                    <label>Endpoint</label>
-                    <select [(ngModel)]="ep.resilience_parameters!.fallback!.endpoint" (ngModelChange)="onFallbackEndpointChange(ep)" [disabled]="!ep.resilience_parameters!.fallback!.service">
-                      <option [value]="undefined" disabled>Seleccionar endpoint...</option>
-                      <option *ngFor="let e of getEndpointsForTarget(ep.name, ep.resilience_parameters!.fallback!.service!)" [value]="e">{{ e }}</option>
-                    </select>
+                    <label>Multiplicador</label>
+                    <input type="number" step="0.1" min="1" [(ngModel)]="ep.resilience_parameters!.retry!.backoff_multiplier" (ngModelChange)="emit()" />
                   </div>
                   <div class="field">
-                    <label>Puerto</label>
-                    <select [(ngModel)]="ep.resilience_parameters!.fallback!.port" (ngModelChange)="emit()" [disabled]="!ep.resilience_parameters!.fallback!.endpoint">
-                      <option [value]="undefined" disabled>Seleccionar puerto...</option>
-                      <option *ngFor="let p of getPortsForTarget(ep.name, ep.resilience_parameters!.fallback!.service!, ep.resilience_parameters!.fallback!.endpoint!)" [value]="p">{{ p }}</option>
-                    </select>
+                    <label>Max Backoff (ms)</label>
+                    <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.retry!.max_backoff_ms" (ngModelChange)="emit()" />
                   </div>
-                </div>
-              </ng-container>
-            </div>
-          </div>
-
-          <!-- CIRCUIT BREAKER -->
-          <div class="pattern-block">
-            <label class="pattern-toggle">
-              <input type="checkbox" [checked]="!!ep.resilience_parameters?.circuit_breaker" (change)="togglePattern(ep, 'circuit_breaker', $event)" />
-              <span class="cb-label">Circuit Breaker</span>
-            </label>
-            <div class="pattern-fields" *ngIf="ep.resilience_parameters?.circuit_breaker">
-              <div class="field-row">
-                <div class="field">
-                  <label>Timeout (s)</label>
-                  <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.circuit_breaker!.timeout" (ngModelChange)="emit()" />
-                </div>
-                <div class="field">
-                  <label>Retry Timer (s)</label>
-                  <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.circuit_breaker!.retry_timer" (ngModelChange)="emit()" />
                 </div>
               </div>
             </div>
-          </div>
+
+            <!-- FALLBACK -->
+            <div class="pattern-block">
+              <label class="pattern-toggle">
+                <input type="checkbox" [checked]="!!ep.resilience_parameters?.fallback" (change)="togglePattern(ep, 'fallback', $event)" />
+                <span class="fb-label">Fallback</span>
+              </label>
+              <div class="pattern-fields" *ngIf="ep.resilience_parameters?.fallback">
+                <div class="field">
+                  <label>Tipo de Fallback</label>
+                  <select [(ngModel)]="ep.resilience_parameters!.fallback!.type" (ngModelChange)="emit()">
+                    <option value="static">Static (Respuesta fija)</option>
+                    <option value="service">Service (Redirigir a otro servicio)</option>
+                  </select>
+                </div>
+
+                <!-- STATIC FIELDS -->
+                <ng-container *ngIf="ep.resilience_parameters!.fallback!.type === 'static'">
+                  <div class="field-row">
+                    <div class="field">
+                      <label>Código de respuesta</label>
+                      <input type="number" [(ngModel)]="ep.resilience_parameters!.fallback!.response_code" (ngModelChange)="emit()" />
+                    </div>
+                    <div class="field">
+                      <label>Payload de respuesta</label>
+                      <input type="text" [(ngModel)]="ep.resilience_parameters!.fallback!.response_payload" (ngModelChange)="emit()" placeholder="fallback-response" />
+                    </div>
+                  </div>
+                </ng-container>
+
+                <!-- SERVICE FIELDS -->
+                <ng-container *ngIf="ep.resilience_parameters!.fallback!.type === 'service'">
+                  <div class="field-row">
+                    <div class="field">
+                      <label>Servicio Destino</label>
+                      <select [(ngModel)]="ep.resilience_parameters!.fallback!.service" (ngModelChange)="onFallbackServiceChange(ep)">
+                        <option [value]="undefined" disabled>Seleccionar servicio...</option>
+                        <option *ngFor="let s of getUniqueTargetServices(ep.name)" [value]="s">{{ s }}</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Endpoint</label>
+                      <select [(ngModel)]="ep.resilience_parameters!.fallback!.endpoint" (ngModelChange)="onFallbackEndpointChange(ep)" [disabled]="!ep.resilience_parameters!.fallback!.service">
+                        <option [value]="undefined" disabled>Seleccionar endpoint...</option>
+                        <option *ngFor="let e of getEndpointsForTarget(ep.name, ep.resilience_parameters!.fallback!.service!)" [value]="e">{{ e }}</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Puerto</label>
+                      <select [(ngModel)]="ep.resilience_parameters!.fallback!.port" (ngModelChange)="emit()" [disabled]="!ep.resilience_parameters!.fallback!.endpoint">
+                        <option [value]="undefined" disabled>Seleccionar puerto...</option>
+                        <option *ngFor="let p of getPortsForTarget(ep.name, ep.resilience_parameters!.fallback!.service!, ep.resilience_parameters!.fallback!.endpoint!)" [value]="p">{{ p }}</option>
+                      </select>
+                    </div>
+                  </div>
+                </ng-container>
+              </div>
+            </div>
+
+            <!-- CIRCUIT BREAKER -->
+            <div class="pattern-block">
+              <label class="pattern-toggle">
+                <input type="checkbox" [checked]="!!ep.resilience_parameters?.circuit_breaker" (change)="togglePattern(ep, 'circuit_breaker', $event)" />
+                <span class="cb-label">Circuit Breaker</span>
+              </label>
+              <div class="pattern-fields" *ngIf="ep.resilience_parameters?.circuit_breaker">
+                <div class="field-row">
+                  <div class="field">
+                    <label>Timeout (s)</label>
+                    <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.circuit_breaker!.timeout" (ngModelChange)="emit()" />
+                  </div>
+                  <div class="field">
+                    <label>Retry Timer (s)</label>
+                    <input type="number" min="0" [(ngModel)]="ep.resilience_parameters!.circuit_breaker!.retry_timer" (ngModelChange)="emit()" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ng-container>
+
+          <ng-template #noOutgoing>
+            <div class="subsection-title">Resilience Patterns</div>
+            <div class="no-resilience-warning">
+              No se pueden configurar patrones de resiliencia porque este servicio no tiene conexiones salientes en el canvas.
+            </div>
+          </ng-template>
 
         </div><!-- end ep-body -->
       </div><!-- end endpoint-item -->
@@ -444,6 +453,16 @@ import { GraphService } from '../../../../core/services/graph.service';
       &:hover { border-color: $accent-blue; color: $accent-blue; }
     }
     .hint-error { font-size: 10px; color: $danger; margin-top: 4px; }
+    .no-resilience-warning {
+      background: var(--bg-warning-subtle);
+      border: 1px solid var(--warning);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: $text-secondary;
+      font-size: 11px;
+      line-height: 1.4;
+      margin-top: 8px;
+    }
   `]
 })
 export class EndpointsTabComponent implements OnChanges {
@@ -460,6 +479,12 @@ export class EndpointsTabComponent implements OnChanges {
 
   get currentProtocol(): 'http' | 'grpc' {
     return this.nodeData.protocol || 'http';
+  }
+
+  hasOutgoingConnections(): boolean {
+    const graph = this.graphService.getGraph();
+    if (!graph || !this.nodeId) return false;
+    return graph.getEdges().some(edge => edge.getSourceCellId() === this.nodeId);
   }
 
   ngOnChanges(changes: SimpleChanges) {
