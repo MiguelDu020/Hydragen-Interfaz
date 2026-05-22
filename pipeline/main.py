@@ -68,6 +68,13 @@ def _make_env() -> dict:
     """Return an environment dict with Go bin dir in PATH."""
     env = os.environ.copy()
     go_bin = "/usr/local/go/bin"
+
+
+# ── Pipeline helpers ──────────────────────────────────────────────────────────
+def _make_env() -> dict:
+    """Return an environment dict with Go bin dir in PATH."""
+    env = os.environ.copy()
+    go_bin = "/usr/local/go/bin"
     current_path = env.get("PATH", "")
     if go_bin not in current_path:
         env["PATH"] = f"{go_bin}:{current_path}"
@@ -109,7 +116,7 @@ def run_command(
     )
     jobs[job_id]["process"] = process
 
-    for raw_line in iter(process.stdout.readline, ""):  # type: ignore[union-attr]
+    for raw_line in iter(process.stdout.readline, ""):
         line = raw_line.rstrip()
         if line:
             lower = line.lower()
@@ -127,7 +134,7 @@ def run_command(
 
 def generate_virtual_service_yaml(service_name: str, protocol: str, fault_config: dict, namespace: str) -> str:
     """Generate VirtualService YAML content with fault injection settings.
-    Uses Istio v1beta1 API and names files as `<service>-<fault_type>.yaml`.
+    Uses Istio v1beta1 API and names VirtualService exactly after the service name.
     """
     fault_type = fault_config.get("type", "none")
     percentage = fault_config.get("percentage", 100)
@@ -136,9 +143,7 @@ def generate_virtual_service_yaml(service_name: str, protocol: str, fault_config
     except Exception:
         percentage_val = 100.0
 
-    # Determine file base name
-    suffix = fault_type if fault_type != "none" else "fault-injection"
-    yaml_name = f"{service_name}-{suffix}"
+    yaml_name = service_name
     route_field = "  http:"
     if (protocol or "http").lower() == "grpc":
         route_field = "  http: # Istio HTTPRoute also handles gRPC/HTTP2 traffic"
@@ -242,7 +247,7 @@ def apply_faults_for_service(
             # Write YAML to a persistent file in the 'faults' directory
             faults_dir = os.path.join(cwd, "faults")
             os.makedirs(faults_dir, exist_ok=True)
-            file_name = f"{service_name}-{fault_type}.yaml"
+            file_name = f"{service_name}.yaml"
             file_path = os.path.join(faults_dir, file_name)
             try:
                 with open(file_path, "w") as f:
@@ -258,13 +263,117 @@ def apply_faults_for_service(
 
         else:
             # Delete if type is none
-            for f_type in ["delay", "abort"]:
-                cmd = f"kubectl delete virtualservice {service_name}-{f_type} {context_flag} -n {namespace} --ignore-not-found"
-                rc = run_command(cmd, cwd, job_id, step_num, step_name)
-                if rc != 0:
-                    success = False
+            cmd = f"kubectl delete virtualservice {service_name} {context_flag} -n {namespace} --ignore-not-found"
+            rc = run_command(cmd, cwd, job_id, step_num, step_name)
+            if rc != 0:
+                success = False
                 
     return success
+
+
+def run_fault_command(cmd: str, cwd: str, env: Optional[dict] = None) -> tuple[bool, str]:
+    process = subprocess.run(
+        cmd,
+        shell=True,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=env or _make_env()
+    )
+    output = process.stdout.strip()
+    return process.returncode == 0, output
+
+
+def apply_or_remove_faults(req: ApplyFaultsRequest, action: str) -> dict:
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    faults_dir = os.path.join(backend_dir, "faults")
+    os.makedirs(faults_dir, exist_ok=True)
+
+    logs: list[str] = []
+    success = True
+    services = req.config.get("services", [])
+
+    for service in services:
+        service_name = service.get("name")
+        if not service_name:
+            continue
+        protocol = service.get("protocol", "http")
+        fault_config = service.get("fault_injection") or {}
+        fault_type = fault_config.get("type", "none")
+
+        clusters = service.get("clusters", [])
+        if not clusters:
+            clusters = [{"cluster": "", "namespace": "default"}]
+
+        for c in clusters:
+            context = c.get("cluster", "")
+            namespace = c.get("namespace", "default")
+            context_flag = f"--context {context}" if context else ""
+
+            if action == "apply":
+                if fault_type != "none":
+                    yaml_content = generate_virtual_service_yaml(service_name, protocol, fault_config, namespace)
+                    if not yaml_content:
+                        continue
+
+                    file_name = f"{service_name}.yaml"
+                    file_path = os.path.join(faults_dir, file_name)
+                    try:
+                        with open(file_path, "w") as f:
+                            f.write(yaml_content)
+                        logs.append(f"Archivo de falla generado: faults/{file_name}")
+                    except Exception as e:
+                        logs.append(f"Error escribiendo YAML para {service_name}: {e}")
+                        success = False
+                        continue
+
+                    cmd = f"kubectl apply {context_flag} -n {namespace} -f faults/{file_name}"
+                    ok, output = run_fault_command(cmd, backend_dir)
+                    logs.append(f"$ {cmd}")
+                    if output:
+                        logs.append(output)
+                    if not ok:
+                        success = False
+                else:
+                    # Clean up VirtualService for none fault types
+                    cmd = f"kubectl delete virtualservice {service_name} {context_flag} -n {namespace} --ignore-not-found"
+                    ok, output = run_fault_command(cmd, backend_dir)
+                    logs.append(f"$ {cmd}")
+                    if output:
+                        logs.append(output)
+                    if not ok:
+                        success = False
+            else:
+                # Action is remove
+                cmd = f"kubectl delete virtualservice {service_name} {context_flag} -n {namespace} --ignore-not-found"
+                ok, output = run_fault_command(cmd, backend_dir)
+                logs.append(f"$ {cmd}")
+                if output:
+                    logs.append(output)
+                if not ok:
+                    success = False
+
+    if action == "remove":
+        for item in os.listdir(faults_dir):
+            if item.endswith(".yaml"):
+                try:
+                    os.remove(os.path.join(faults_dir, item))
+                except Exception:
+                    pass
+
+    if action == "apply":
+        message_ok = "Fallas generadas y aplicadas correctamente"
+        message_error = "Error al generar o aplicar fallas"
+    else:
+        message_ok = "Fallas removidas correctamente"
+        message_error = "Error al remover fallas"
+
+    return {
+        "status": "ok" if success else "error",
+        "message": message_ok if success else message_error,
+        "logs": logs
+    }
 
 
 # ── Pipeline execution (runs in a background thread) ─────────────────────────
@@ -570,56 +679,10 @@ def stop_metrics():
 
 @app.post("/apply-faults")
 def apply_faults(req: ApplyFaultsRequest):
-    # Directory to store generated fault YAML files
-    backend_dir = os.path.dirname(os.path.abspath(__file__))
-    faults_dir = os.path.join(backend_dir, "faults")
-    os.makedirs(faults_dir, exist_ok=True)
+    return apply_or_remove_faults(req, "apply")
 
-    # Clean existing YAML files in faults/ directory to prevent stale config files
-    for item in os.listdir(faults_dir):
-        if item.endswith(".yaml"):
-            try:
-                os.remove(os.path.join(faults_dir, item))
-            except Exception as e:
-                pass
 
-    services = req.config.get("services", [])
-    logs = []
-    success = True
-
-    for service in services:
-        service_name = service.get("name")
-        protocol = service.get("protocol", "http")
-        fault_config = service.get("fault_injection") or {}
-        fault_type = fault_config.get("type", "none")
-        
-        clusters = service.get("clusters", [])
-        if not clusters:
-            clusters = [{"cluster": "", "namespace": "default"}]
-            
-        for c in clusters:
-            namespace = c.get("namespace", "default")
-            
-            if fault_type != "none":
-                yaml_content = generate_virtual_service_yaml(service_name, protocol, fault_config, namespace)
-                if not yaml_content:
-                    continue
-                
-                file_name = f"{service_name}-{fault_type}.yaml"
-                file_path = os.path.join(faults_dir, file_name)
-                try:
-                    with open(file_path, "w") as f:
-                        f.write(yaml_content)
-                    logs.append(f"Archivo de falla generado: faults/{file_name}")
-                except Exception as e:
-                    logs.append(f"Error escribiendo YAML para {service_name}: {e}")
-                    success = False
-            else:
-                pass
-
-    return {
-        "status": "ok" if success else "error",
-        "message": "Archivos de fallas generados correctamente" if success else "Error al generar archivos de fallas",
-        "logs": logs
-    }
+@app.post("/remove-faults")
+def remove_faults(req: ApplyFaultsRequest):
+    return apply_or_remove_faults(req, "remove")
 

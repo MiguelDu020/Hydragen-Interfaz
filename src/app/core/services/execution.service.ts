@@ -70,6 +70,14 @@ export class ExecutionService {
     });
   }
 
+  /** POST /remove-faults — remove configured fault injection VirtualServices */
+  removeFaults(config: any, sudoPassword = ''): Observable<{ status: string; message: string; logs: string[] }> {
+    return this.http.post<{ status: string; message: string; logs: string[] }>(`${this.API_URL}/remove-faults`, {
+      config,
+      sudo_password: sudoPassword
+    });
+  }
+
   /** GET /status/{jobId} — one-shot status poll */
   getStatus(jobId: string): Observable<ExecutionStatus> {
     return this.http.get<ExecutionStatus>(`${this.API_URL}/status/${jobId}`);

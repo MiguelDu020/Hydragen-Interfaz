@@ -39,6 +39,7 @@ interface PipelineStep {
 })
 export class ExecutionModalComponent implements OnInit, OnDestroy {
   @Output() closed = new EventEmitter<void>();
+  @Output() benchmarkCompleted = new EventEmitter<void>();
   @ViewChild('logsPanel') logsPanel!: ElementRef<HTMLDivElement>;
 
   // ── Config view ────────────────────────────────────────────────────────────
@@ -379,6 +380,8 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
             if (status.status === 'completed') {
               this.jobStatus = 'completed';
               this.saveSuccessfulPath(this.hydragenPath);
+              localStorage.setItem('hydragen_benchmark_completed', 'true');
+              this.benchmarkCompleted.emit();
               this.steps.forEach((s) => (s.status = 'done'));
               this.timerSub?.unsubscribe();
             } else if (status.status === 'failed') {

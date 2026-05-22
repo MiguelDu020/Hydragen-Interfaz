@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ExporterService } from '../../../core/services/exporter.service';
@@ -47,8 +47,8 @@ import { ExecutionService } from '../../../core/services/execution.service';
           *ngIf="hasFaults"
           class="btn faults-apply"
           (click)="applyFaultInjections()"
-          [disabled]="applyingFaults"
-          [title]="applyingFaults ? 'Aplicando inyecciones de fallas...' : 'Aplicar inyección de fallas a la arquitectura desplegada'"
+          [disabled]="faultActionRunning || !benchmarkCompleted"
+          [title]="faultButtonTitle('Aplicar inyección de fallas a la arquitectura desplegada')"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -56,6 +56,23 @@ import { ExecutionService } from '../../../core/services/execution.service';
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
           {{ applyingFaults ? 'Aplicando...' : 'Aplicar Fallas' }}
+        </button>
+
+        <button
+          *ngIf="benchmarkCompleted"
+          class="btn faults-remove"
+          (click)="removeFaultInjections()"
+          [disabled]="faultActionRunning"
+          [title]="faultButtonTitle('Quitar inyección de fallas de la arquitectura desplegada')"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"/>
+            <path d="M8 6V4h8v2"/>
+            <path d="M19 6l-1 14H6L5 6"/>
+            <path d="M10 11v5"/>
+            <path d="M14 11v5"/>
+          </svg>
+          {{ removingFaults ? 'Quitando...' : 'Quitar Fallas' }}
         </button>
 
         <button
@@ -88,6 +105,7 @@ import { ExecutionService } from '../../../core/services/execution.service';
     <app-execution-modal
       *ngIf="showExecutionModal"
       (closed)="showExecutionModal = false"
+      (benchmarkCompleted)="markBenchmarkCompleted()"
     ></app-execution-modal>
 
     <!-- Toast Notification -->
@@ -164,6 +182,20 @@ import { ExecutionService } from '../../../core/services/execution.service';
         }
         &:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
       }
+      &.faults-remove {
+        border-color: #f87171;
+        color: #fff;
+        background: linear-gradient(135deg, #b91c1c, #ef4444);
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, #dc2626, #f87171);
+          box-shadow: 0 0 14px rgba(248,113,113,0.35);
+        }
+        &:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+      }
     }
     .separator {
       width: 1px;
@@ -196,11 +228,13 @@ import { ExecutionService } from '../../../core/services/execution.service';
     }
   `]
 })
-export class ToolbarComponent {
+export class ToolbarComponent implements OnInit {
   @Output() openPreview = new EventEmitter<void>();
 
   showExecutionModal = false;
   applyingFaults = false;
+  removingFaults = false;
+  benchmarkCompleted = false;
 
   showToast = false;
   toastMessage = '';
@@ -213,6 +247,10 @@ export class ToolbarComponent {
     private themeService: ThemeService,
     private executionService: ExecutionService
   ) { }
+
+  ngOnInit(): void {
+    this.benchmarkCompleted = localStorage.getItem('hydragen_benchmark_completed') === 'true';
+  }
 
   get isDark(): boolean {
     return this.themeService.getCurrentTheme() === 'dark';
@@ -240,8 +278,24 @@ export class ToolbarComponent {
     });
   }
 
+  get faultActionRunning(): boolean {
+    return this.applyingFaults || this.removingFaults;
+  }
+
+  markBenchmarkCompleted(): void {
+    this.benchmarkCompleted = true;
+    localStorage.setItem('hydragen_benchmark_completed', 'true');
+  }
+
+  faultButtonTitle(baseTitle: string): string {
+    if (!this.benchmarkCompleted) return 'Ejecuta correctamente el benchmark antes de aplicar o quitar fallas';
+    if (this.applyingFaults) return 'Aplicando inyecciones de fallas...';
+    if (this.removingFaults) return 'Quitando inyecciones de fallas...';
+    return baseTitle;
+  }
+
   applyFaultInjections(): void {
-    if (this.applyingFaults) return;
+    if (this.faultActionRunning || !this.benchmarkCompleted) return;
     this.applyingFaults = true;
 
     let config: any;
@@ -249,6 +303,7 @@ export class ToolbarComponent {
       config = this.exporterService.generateConfig({ includeFaults: true });
     } catch (e: any) {
       this.applyingFaults = false;
+      this.removingFaults = false;
       this.toastMessage = 'Error al generar la configuración: ' + e.message;
       this.toastType = 'error';
       this.showToast = true;
@@ -260,15 +315,52 @@ export class ToolbarComponent {
     this.executionService.applyFaults(config).subscribe({
       next: (res) => {
         this.applyingFaults = false;
-        this.toastMessage = 'Archivos de fallas generados correctamente';
-        this.toastType = 'success';
+        this.toastMessage = res.message || 'Fallas aplicadas correctamente';
+        this.toastType = res.status === 'ok' ? 'success' : 'error';
         this.showToast = true;
         clearTimeout(this.toastTimer);
-        this.toastTimer = setTimeout(() => { this.showToast = false; }, 3000);
+        this.toastTimer = setTimeout(() => { this.showToast = false; }, res.status === 'ok' ? 3000 : 5000);
       },
       error: (err) => {
         this.applyingFaults = false;
         this.toastMessage = 'Error al generar archivos de fallas: ' + (err.error?.detail || err.message || 'No se pudo conectar al backend.');
+        this.toastType = 'error';
+        this.showToast = true;
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => { this.showToast = false; }, 4000);
+      }
+    });
+  }
+
+  removeFaultInjections(): void {
+    if (this.faultActionRunning || !this.benchmarkCompleted) return;
+    this.removingFaults = true;
+
+    let config: any;
+    try {
+      config = this.exporterService.generateConfig({ includeFaults: true });
+    } catch (e: any) {
+      this.removingFaults = false;
+      this.toastMessage = 'Error al generar la configuracion: ' + e.message;
+      this.toastType = 'error';
+      this.showToast = true;
+      clearTimeout(this.toastTimer);
+      this.toastTimer = setTimeout(() => { this.showToast = false; }, 4000);
+      return;
+    }
+
+    this.executionService.removeFaults(config).subscribe({
+      next: (res) => {
+        this.removingFaults = false;
+        this.toastMessage = res.message || 'Fallas removidas correctamente';
+        this.toastType = res.status === 'ok' ? 'success' : 'error';
+        this.showToast = true;
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => { this.showToast = false; }, res.status === 'ok' ? 3000 : 5000);
+      },
+      error: (err) => {
+        this.removingFaults = false;
+        this.toastMessage = 'Error al remover fallas: ' + (err.error?.detail || err.message || 'No se pudo conectar al backend.');
         this.toastType = 'error';
         this.showToast = true;
         clearTimeout(this.toastTimer);
