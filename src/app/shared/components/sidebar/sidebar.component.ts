@@ -14,34 +14,6 @@ import { CommonModule } from '@angular/common';
           <span class="cube-label">Service</span>
         </div>
       </div>
-
-      <div class="section-label mt">Resilience Patterns</div>
-      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'timeout')">
-        <span class="item-icon to">TO</span>
-        <div class="item-info">
-          <span>Timeout</span>
-          <small>Límite de tiempo de respuesta</small>
-        </div>
-      </div>
-      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'retry')">
-        <span class="item-icon rt">RT</span>
-        <div class="item-info">
-          <span>Retry</span>
-          <small>Reintento con backoff exponencial</small>
-        </div>
-      </div>
-      <div class="item pattern" draggable="true" (dragstart)="onDragStart($event, 'fallback')">
-        <span class="item-icon fb">FB</span>
-        <div class="item-info">
-          <span>Fallback</span>
-          <small>Respuesta alternativa ante fallo</small>
-        </div>
-      </div>
-
-      <p class="hint">
-        💡 Los patrones se configuran en la pestaña <strong>Endpoints</strong>
-        del panel de propiedades del servicio.
-      </p>
     </div>
   `,
   styles: [`
@@ -50,8 +22,8 @@ import { CommonModule } from '@angular/common';
     .sidebar-container {
       width: 220px;
       height: 100%;
-      background-color: $bg-card;
-      border-right: 1px solid $border-color;
+      background-color: var(--bg-card);
+      border-right: 1px solid var(--border-color);
       padding: 16px 12px;
       overflow-y: auto;
       display: flex;
@@ -64,7 +36,7 @@ import { CommonModule } from '@angular/common';
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: $text-secondary;
+      color: var(--text-secondary);
       margin-bottom: 4px;
       padding: 0 4px;
       &.mt { margin-top: 14px; }
@@ -79,8 +51,8 @@ import { CommonModule } from '@angular/common';
     }
 
     .cube-item {
-      background-color: $bg-surface;
-      border: 1px solid $border-color;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
       cursor: grab;
       transition: all 0.2s ease;
@@ -90,16 +62,16 @@ import { CommonModule } from '@angular/common';
       justify-content: center;
       aspect-ratio: 1;
       gap: 8px;
-      &:hover { border-color: $accent-blue; background-color: rgba(0, 123, 255, 0.08); transform: translateY(-1px); }
+      &:hover { border-color: var(--accent-blue); background-color: var(--bg-hover); transform: translateY(-1px); }
       &:active { cursor: grabbing; transform: translateY(0); }
-      .cube-icon { font-size: 22px; color: #c7d2e0; }
-      .cube-label { font-size: 11px; font-weight: 500; color: $text-primary; text-align: center; }
+      .cube-icon { font-size: 22px; color: var(--text-muted); }
+      .cube-label { font-size: 11px; font-weight: 500; color: var(--text-primary); text-align: center; }
     }
 
     .item {
       padding: 10px 12px;
-      background-color: $bg-surface;
-      border: 1px solid $border-color;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       cursor: grab;
       transition: all 0.15s ease;
@@ -107,7 +79,7 @@ import { CommonModule } from '@angular/common';
       align-items: center;
       gap: 10px;
       font-size: 13px;
-      &:hover { border-color: $accent-blue; background-color: rgba(0, 123, 255, 0.06); }
+      &:hover { border-color: var(--accent-blue); background-color: var(--bg-hover); }
       &:active { cursor: grabbing; }
     }
 
@@ -120,28 +92,28 @@ import { CommonModule } from '@angular/common';
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      &.to { border: 1px solid #3c5e6e; background: #1a3340; color: #7dd3fc; }
-      &.rt { border: 1px solid #4e5e3c; background: #2a3318; color: #bef264; }
-      &.fb { border: 1px solid #6e5a3c; background: #3a2e18; color: #fcd34d; }
+      &.to { border: 1px solid var(--accent-blue); background: var(--bg-accent-subtle); color: var(--accent-blue); }
+      &.rt { border: 1px solid var(--success); background: var(--bg-success-subtle); color: var(--success); }
+      &.fb { border: 1px solid var(--warning); background: var(--bg-warning-subtle); color: var(--warning); }
     }
 
     .item-info {
       display: flex;
       flex-direction: column;
       gap: 2px;
-      small { font-size: 10px; color: $text-secondary; }
+      small { font-size: 10px; color: var(--text-secondary); }
     }
 
     .hint {
       font-size: 10px;
-      color: $text-secondary;
+      color: var(--text-secondary);
       margin-top: 8px;
       line-height: 1.5;
       padding: 8px;
-      background: rgba(255,255,255,0.03);
+      background: var(--bg-subtle);
       border-radius: 6px;
-      border: 1px solid $border-color;
-      strong { color: $accent-blue; }
+      border: 1px solid var(--border-color);
+      strong { color: var(--accent-blue); }
     }
   `]
 })

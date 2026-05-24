@@ -6,10 +6,17 @@ export interface HydraGenConfig {
   services: Service[];
 }
 
+export interface ClusterDefinition {
+  name: string;
+  namespace: string;
+}
+
 export interface GlobalSettings {
   logging: boolean;
   development: boolean;
   base_image: string;
+
+  clusters: ClusterDefinition[];
 }
 
 export interface ClusterLatency {
@@ -18,9 +25,18 @@ export interface ClusterLatency {
   latency: number;
 }
 
+export interface FaultInjectionConfig {
+  type: 'delay' | 'abort' | 'none';
+  percentage: number;
+  delay_s?: number;
+  http_status?: number;
+  grpc_status?: string;
+}
+
 export interface Service {
   name: string;
   protocol: 'http' | 'grpc';
+  replicas: number;
   clusters: ClusterConfig[];
   resources: Resources;
   processes: number;
@@ -29,19 +45,18 @@ export interface Service {
   development?: boolean;
   base_image?: string;
   endpoints: Endpoint[];
-  // resilience_patterns is at ENDPOINT level, NOT service level
+  fault_injection?: FaultInjectionConfig;
 }
 
 export interface ClusterConfig {
   cluster: string;
-  replicas: number;
   namespace: string;
   node?: string;
   annotations?: Record<string, string> | Annotation[];
 }
 
 export interface Annotation {
-  key: string;
+  name: string;
   value: string;
 }
 
@@ -60,7 +75,8 @@ export interface Endpoint {
   execution_mode: 'sequential' | 'parallel';
   cpu_complexity: CpuComplexity;
   network_complexity: NetworkComplexity;
-  resilience_patterns?: ResiliencePatterns; // ← at endpoint level
+  resilience_patterns?: ResiliencePatterns;
+  resilience_parameters?: ResiliencePatterns; // ← at endpoint level
 }
 
 export interface CpuComplexity {
@@ -81,7 +97,6 @@ export interface CalledService {
   protocol: 'http' | 'grpc';
   traffic_forward_ratio: number;
   request_payload_size: number;
-  active_timeout?: boolean;
-  active_retry?: boolean;
-  active_fallback?: boolean;
+  active_circuit_breaker?: boolean;
+  resilience_patterns?: ResiliencePatterns;
 }

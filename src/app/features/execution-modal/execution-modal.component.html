@@ -1,0 +1,301 @@
+<!-- ══════════════════════════════════════════════════════════
+     Overlay backdrop
+     ══════════════════════════════════════════════════════════ -->
+<div class="exec-overlay" (click)="close()">
+  <div class="exec-modal" (click)="$event.stopPropagation()">
+
+    <!-- ── Modal Header ──────────────────────────────────────── -->
+    <div class="exec-header">
+      <div class="exec-title">
+        <span class="exec-icon">▶</span>
+        <h2>Ejecutar Benchmark</h2>
+      </div>
+      <button class="close-btn" (click)="close()" title="Cerrar">×</button>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════
+         VISTA 1 — Configuración previa
+         ════════════════════════════════════════════════════════ -->
+    <ng-container *ngIf="view === 'config'">
+
+      <div class="exec-body config-body">
+
+        <!-- Backend error banner -->
+        <div class="alert alert-error" *ngIf="backendError">
+          <span class="alert-icon">⚠</span>
+          <span>{{ backendError }}</span>
+        </div>
+
+        <!-- SSH warning confirmation -->
+        <div class="alert alert-warn" *ngIf="sshWarningAccepted && !sshPassword">
+          <div class="alert-icon">⚠</div>
+          <div class="alert-body">
+            <strong>¿Continuar sin contraseña SSH?</strong>
+            <p>Esto solo funciona si tienes autenticación por clave SSH configurada en todos los nodos del clúster. Si no es así, el push de imagen fallará.</p>
+            <div class="alert-actions">
+              <button class="btn btn-warn-outline" (click)="cancelSshWarning()">Cancelar</button>
+              <button class="btn btn-warn" (click)="confirmNoSsh()">Sí, continuar sin contraseña</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form fields -->
+        <div class="field-group">
+          <label class="field-label" for="hydragenPath">
+            Ruta de HydraGen <span class="required">*</span>
+          </label>
+          <input
+            id="hydragenPath"
+            class="field-input"
+            type="text"
+            [(ngModel)]="hydragenPath"
+            placeholder="/home/usuario/hydragen"
+            list="pathHistory"
+          />
+          <datalist id="pathHistory">
+            <option *ngFor="let p of hydragenPaths" [value]="p"></option>
+          </datalist>
+          <span class="field-hint">Ruta absoluta al directorio raíz de HydraGen en el servidor Linux.</span>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="sshPassword">
+            Contraseña SSH de los nodos <span class="required">*</span>
+          </label>
+          <input
+            id="sshPassword"
+            class="field-input"
+            type="password"
+            [(ngModel)]="sshPassword"
+            placeholder="Dejar vacío si usas clave SSH"
+          />
+          <div class="field-hint ssh-hint">
+            <span>Requerida para distribuir la imagen a los nodos del clúster.</span>
+            <div class="ssh-warn-inline">
+              <span class="warn-badge">⚠ sshpass</span>
+              Requiere <code>sshpass</code> instalado en el servidor:
+              <code class="cmd-snippet">sudo apt install sshpass</code>
+            </div>
+            <span class="hint-optional">Si ya tienes clave SSH configurada, deja este campo vacío.</span>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="sudoPassword">
+            Contraseña sudo <span class="optional-tag">(opcional)</span>
+          </label>
+          <input
+            id="sudoPassword"
+            class="field-input"
+            type="password"
+            [(ngModel)]="sudoPassword"
+            placeholder="Dejar vacío si containerd no requiere sudo"
+          />
+          <span class="field-hint">Dejar vacío si el usuario tiene acceso directo a containerd sin <code>sudo</code>.</span>
+        </div>
+
+        <div class="field-group">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="cleanupNamespace" />
+            <span class="checkmark"></span>
+            Limpiar namespace antes del deploy
+          </label>
+        </div>
+
+        <div class="field-group" *ngIf="cleanupNamespace">
+          <label class="field-label" for="namespace">
+            Namespace Kubernetes
+          </label>
+
+          <input
+            id="namespace"
+            class="field-input"
+            type="text"
+            [(ngModel)]="namespace"
+            placeholder="benchmark"
+          />
+
+          <span class="field-hint">
+            Se ejecutará:
+            <code>kubectl delete all --all -n {{ namespace }}</code>
+          </span>
+        </div>
+
+        <div class="checkbox-row">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="verifyBackend" />
+            <span class="checkmark"></span>
+            Verificar backend antes de ejecutar
+          </label>
+        </div>
+
+      </div><!-- /config-body -->
+
+      <!-- Config footer -->
+      <div class="exec-footer">
+        <button class="btn btn-ghost" (click)="close()">Cancelar</button>
+        <button
+          class="btn btn-primary"
+          (click)="iniciar()"
+          [disabled]="isStarting || !hydragenPath"
+        >
+          <span class="spinner" *ngIf="isStarting"></span>
+          <span *ngIf="!isStarting">▶ Iniciar Pipeline</span>
+          <span *ngIf="isStarting">Iniciando...</span>
+        </button>
+      </div>
+
+    </ng-container><!-- /view config -->
+
+
+    <!-- ════════════════════════════════════════════════════════
+         VISTA 2 — Pipeline en ejecución
+         ════════════════════════════════════════════════════════ -->
+    <ng-container *ngIf="view === 'running'">
+
+      <div class="exec-body running-body">
+
+        <!-- ── Left: Pipeline steps ─────────────────────────── -->
+        <div class="pipeline-panel">
+
+          <div class="pipeline-steps">
+            <div
+              class="step-item"
+              *ngFor="let s of steps"
+              [class.step-done]="s.status === 'done'"
+              [class.step-running]="s.status === 'running'"
+              [class.step-error]="s.status === 'error'"
+              [class.step-pending]="s.status === 'pending'"
+            >
+              <div class="step-indicator">
+                <span
+                  class="step-icon"
+                  [class.spin]="s.status === 'running'"
+                >{{ stepIcon(s) }}</span>
+                <div class="step-connector" *ngIf="s.num < totalSteps"></div>
+              </div>
+              <div class="step-info">
+                <span class="step-num">PASO {{ s.num }}</span>
+                <span class="step-label">{{ s.label }}</span>
+                <span class="step-status-text">{{ stepLabel(s) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="progress-section">
+            <div class="progress-meta">
+              <span>Progreso</span>
+              <span>{{ progressPercent }}%</span>
+            </div>
+            <div class="progress-bar">
+              <div
+                class="progress-fill"
+                [style.width.%]="progressPercent"
+                [class.fill-error]="isFailed"
+                [class.fill-done]="isCompleted"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Timer -->
+          <div class="timer-row">
+            <span class="timer-icon">⏱</span>
+            <span class="timer-label">Tiempo transcurrido:</span>
+            <span class="timer-value">{{ formatElapsed() }}</span>
+          </div>
+
+        </div><!-- /pipeline-panel -->
+
+        <!-- ── Right: Logs terminal ─────────────────────────── -->
+        <div class="logs-panel">
+          <div class="logs-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="logs-step-name">{{ stepName || 'Esperando...' }}</span>
+          </div>
+          <div class="logs-body" #logsPanel>
+            <div
+              class="log-line"
+              *ngFor="let log of logs"
+              [ngClass]="logLineClass(log)"
+            >{{ log.line }}</div>
+            <div class="log-cursor" *ngIf="isRunning">█</div>
+            <div class="log-empty" *ngIf="logs.length === 0">
+              Esperando output del pipeline...
+            </div>
+          </div>
+        </div><!-- /logs-panel -->
+
+      </div><!-- /running-body -->
+
+      <!-- Running footer -->
+      <div class="exec-footer">
+
+        <!-- Status: running -->
+        <ng-container *ngIf="isRunning">
+          <button
+            class="btn btn-danger-outline"
+            (click)="cancelar()"
+            [disabled]="isCancelling"
+          >
+            <span class="spinner" *ngIf="isCancelling"></span>
+            ✖ Cancelar Ejecución
+          </button>
+        </ng-container>
+
+        <!-- Status: completed -->
+        <ng-container *ngIf="isCompleted">
+          <div class="status-msg status-success">
+            <span>✓ Benchmark desplegado exitosamente en Kubernetes</span>
+          </div>
+          <button class="btn btn-accent" (click)="showMetrics()">
+            <span class="icon"></span> Ver Métricas (Grafana)
+          </button>
+          <button class="btn btn-primary" (click)="close()">Cerrar</button>
+        </ng-container>
+
+        <!-- Status: failed -->
+        <ng-container *ngIf="isFailed">
+          <div class="status-msg status-error">
+            <span>✗ Error en el paso {{ currentStep }}: {{ errorMessage }}</span>
+          </div>
+          <div class="footer-actions">
+            <button class="btn btn-ghost" (click)="retry()">↩ Reintentar</button>
+            <button class="btn btn-danger-outline" (click)="close()">Cerrar</button>
+          </div>
+        </ng-container>
+
+      </div>
+
+    </ng-container><!-- /view running -->
+
+
+    <!-- ════════════════════════════════════════════════════════
+         VISTA 3 — Métricas Grafana
+         ════════════════════════════════════════════════════════ -->
+    <ng-container *ngIf="view === 'metrics'">
+      <div class="exec-body metrics-body">
+        <div class="metrics-loading" *ngIf="loadingMetrics">
+          <span class="spinner large"></span>
+          <p>Iniciando port-forward a Grafana...</p>
+        </div>
+        
+        <iframe 
+          *ngIf="!loadingMetrics"
+          [src]="metricsUrl | safeUrl"
+          class="metrics-iframe"
+          frameborder="0"
+        ></iframe>
+      </div>
+
+      <div class="exec-footer">
+        <p class="metrics-hint">Puerto local 3000 -> Prometheus Grafana (monitoring)</p>
+        <button class="btn btn-ghost" (click)="hideMetrics()">↩ Volver a Logs</button>
+        <button class="btn btn-primary" (click)="close()">Finalizar todo</button>
+      </div>
+    </ng-container>
+
+  </div><!-- /exec-modal -->
+</div><!-- /exec-overlay -->

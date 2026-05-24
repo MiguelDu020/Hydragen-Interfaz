@@ -10,11 +10,8 @@ import { ExporterService } from '../../core/services/exporter.service';
     <div class="preview-overlay" (click)="close()">
       <div class="preview-container" (click)="$event.stopPropagation()">
         <div class="preview-header">
-          <h3>📄 Export Preview</h3>
-          <div class="format-tabs">
-            <button [class.active]="format === 'json'" (click)="setFormat('json')">JSON</button>
-            <button [class.active]="format === 'yaml'" (click)="setFormat('yaml')">YAML</button>
-          </div>
+          <h3>Export Preview</h3>
+          <span class="format-label">JSON</span>
           <button class="close-btn" (click)="close()">×</button>
         </div>
         <div class="preview-body">
@@ -24,7 +21,7 @@ import { ExporterService } from '../../core/services/exporter.service';
         <div class="preview-footer">
           <button class="btn-secondary" (click)="close()">Cancel</button>
           <button class="btn-primary" (click)="download()">
-            ⬇ Download {{ format.toUpperCase() }}
+            ⬇ Download JSON
           </button>
         </div>
       </div>
@@ -68,30 +65,14 @@ import { ExporterService } from '../../core/services/exporter.service';
 
       h3 { margin: 0; font-size: 15px; flex: 1; }
 
-      .format-tabs {
-        display: flex;
-        background: $bg-surface;
-        border-radius: 6px;
-        overflow: hidden;
-        border: 1px solid $border-color;
-
-        button {
-          background: transparent;
-          border: none;
-          color: $text-secondary;
-          padding: 6px 16px;
-          font-size: 12px;
-          font-weight: 500;
-          border-radius: 0;
-          cursor: pointer;
-          transition: all 0.15s;
-
-          &.active {
-            background: $accent-blue;
-            color: white;
-          }
-          &:hover:not(.active) { background: rgba(255,255,255,0.05); }
-        }
+      .format-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: white;
+        background: $accent-blue;
+        padding: 5px 14px;
+        border-radius: 5px;
+        letter-spacing: 0.03em;
       }
 
       .close-btn {
@@ -116,7 +97,7 @@ import { ExporterService } from '../../core/services/exporter.service';
         font-family: $font-mono;
         font-size: 12px;
         line-height: 1.6;
-        color: #e0e0e0;
+        color: var(--text-primary);
         white-space: pre-wrap;
         word-break: break-word;
       }
@@ -141,7 +122,6 @@ import { ExporterService } from '../../core/services/exporter.service';
   `]
 })
 export class ExportPreviewComponent implements OnInit {
-  format: 'json' | 'yaml' = 'json';
   content = '';
   error = '';
   @Input() onClose?: () => void;
@@ -155,17 +135,10 @@ export class ExportPreviewComponent implements OnInit {
     this.generate();
   }
 
-  setFormat(f: 'json' | 'yaml') {
-    this.format = f;
-    this.generate();
-  }
-
   generate() {
     try {
       this.error = '';
-      this.content = this.format === 'json'
-        ? this.exporterService.exportToJson()
-        : this.exporterService.exportToYaml();
+      this.content = this.exporterService.exportToJson();
     } catch (e: any) {
       this.error = e?.message || 'Error generating config';
       this.content = '';
@@ -175,9 +148,7 @@ export class ExportPreviewComponent implements OnInit {
 
   download() {
     if (this.error) return;
-    const ext = this.format;
-    const mime = ext === 'json' ? 'application/json' : 'text/yaml';
-    this.exporterService.downloadFile(this.content, `hydragen-config.${ext}`, mime);
+    this.exporterService.downloadFile(this.content, 'hydragen-config.json', 'application/json');
   }
 
   close() {

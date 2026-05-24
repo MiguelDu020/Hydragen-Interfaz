@@ -12,6 +12,7 @@ import { ResourcesTabComponent }  from '../tabs/resources-tab/resources-tab.comp
 import { ClustersTabComponent }   from '../tabs/clusters-tab/clusters-tab.component';
 import { EndpointsTabComponent }  from '../tabs/endpoints-tab/endpoints-tab.component';
 import { ResilienceTabComponent } from '../tabs/resilience-tab/resilience-tab.component';
+import { FaultTabComponent }      from '../tabs/fault-tab/fault-tab.component';
 
 type PanelMode = 'node' | 'edge' | 'global';
 
@@ -22,7 +23,7 @@ type PanelMode = 'node' | 'edge' | 'global';
     CommonModule, FormsModule,
     GeneralTabComponent, ResourcesTabComponent,
     ClustersTabComponent, EndpointsTabComponent,
-    ResilienceTabComponent
+    ResilienceTabComponent, FaultTabComponent
   ],
   template: `
     <!-- ═══════════════════════════════════════ NODE PANEL ════════════════ -->
@@ -42,17 +43,17 @@ type PanelMode = 'node' | 'edge' | 'global';
         <div class="tabs">
           <button [class.active]="activeTab==='general'"    (click)="activeTab='general'">General</button>
           <button [class.active]="activeTab==='resources'"  (click)="activeTab='resources'">Resources</button>
-          <button [class.active]="activeTab==='clusters'"   (click)="activeTab='clusters'">Clusters</button>
           <button [class.active]="activeTab==='endpoints'"  (click)="activeTab='endpoints'">Endpoints</button>
           <button [class.active]="activeTab==='resilience'" (click)="activeTab='resilience'">Resilience</button>
+          <button [class.active]="activeTab==='faults'"     (click)="activeTab='faults'">Fallas</button>
         </div>
 
         <div class="tab-content">
-          <app-general-tab    *ngIf="activeTab==='general'"    [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-general-tab>
+          <app-general-tab    *ngIf="activeTab==='general'"    [nodeData]="pendingData" [availableClusters]="settings.clusters" (dataChange)="pendingData=$event" (goToGlobalSettings)="setMode('global')" ></app-general-tab>
           <app-resources-tab  *ngIf="activeTab==='resources'"  [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-resources-tab>
-          <app-clusters-tab   *ngIf="activeTab==='clusters'"   [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-clusters-tab>
-          <app-endpoints-tab  *ngIf="activeTab==='endpoints'"  [nodeData]="pendingData" [nodeId]="selectedNode!.id" (dataChange)="pendingData=$event"></app-endpoints-tab>
+          <app-endpoints-tab  *ngIf="activeTab==='endpoints'"  [nodeData]="pendingData" [nodeId]="selectedNode!.id" [graphRevision]="graphRevision" (dataChange)="pendingData=$event"></app-endpoints-tab>
           <app-resilience-tab *ngIf="activeTab==='resilience'" [nodeData]="pendingData" (goToEndpoints)="activeTab='endpoints'"></app-resilience-tab>
+          <app-fault-tab      *ngIf="activeTab==='faults'"     [nodeData]="pendingData" (dataChange)="pendingData=$event"></app-fault-tab>
         </div>
 
         <div class="footer">
@@ -87,18 +88,9 @@ type PanelMode = 'node' | 'edge' | 'global';
             <label>Endpoint destino</label>
             <input type="text" [(ngModel)]="edgeData.targetEndpoint" (ngModelChange)="applyEdgeData()" placeholder="end1" />
           </div>
-          <div class="field-row">
-            <div class="field">
-              <label>Puerto</label>
-              <input type="number" [(ngModel)]="edgeData.port" (ngModelChange)="applyEdgeData()" />
-            </div>
-            <div class="field">
-              <label>Protocolo</label>
-              <select [(ngModel)]="edgeData.protocol" (ngModelChange)="applyEdgeData()">
-                <option value="http">HTTP</option>
-                <option value="grpc">gRPC</option>
-              </select>
-            </div>
+          <div class="field">
+            <label>Puerto</label>
+            <input type="number" [(ngModel)]="edgeData.port" (ngModelChange)="applyEdgeData()" />
           </div>
           <div class="field-row">
             <div class="field">
@@ -148,34 +140,45 @@ type PanelMode = 'node' | 'edge' | 'global';
           <div class="empty-hint" *ngIf="!settings">Cargando…</div>
           <ng-container *ngIf="settings">
             <div class="section-label">Ajustes globales</div>
-            <label class="flag-row">
-              <input type="checkbox" [(ngModel)]="settings.logging" (ngModelChange)="saveSettings()" />
-              <span>Logging</span>
-            </label>
-            <label class="flag-row">
-              <input type="checkbox" [(ngModel)]="settings.development" (ngModelChange)="saveSettings()" />
-              <span>Development Mode</span>
-            </label>
             <div class="field">
               <label>Base Image</label>
-              <input type="text" [(ngModel)]="settings.base_image" (ngModelChange)="saveSettings()" placeholder="ubuntu:20.04" />
+              <input type="text" [(ngModel)]="settings.base_image" placeholder="ubuntu:20.04" />
             </div>
 
             <div class="divider"></div>
+            <div class="section-label">Clusters Globales</div>
+            <p class="hint-small">Define los clusters y asocia servicios a ellos.</p>
+            
+            <div class="latency-item" *ngFor="let cls of settings.clusters || []; let i = index">
+              <div class="field-row">
+                <div class="field">
+                  <label>Nombre del Cluster</label>
+                  <input type="text" [(ngModel)]="cls.name" placeholder="cluster1" />
+                </div>
+                <div class="field">
+                  <label>Namespace</label>
+                  <input type="text" [(ngModel)]="cls.namespace" placeholder="default" />
+                </div>
+              </div>
+              <button class="btn-remove-sm" (click)="removeGlobalCluster(i)">Eliminar Cluster</button>
+            </div>
+            <button class="btn-add-sm" (click)="addGlobalCluster()">+ Agregar Cluster Global</button>
+
+            <div class="divider"></div>
             <div class="section-label">Cluster Latencies</div>
-            <div class="latency-item" *ngFor="let lat of clusterLatencies; let i = index">
+            <div class="latency-item" *ngFor="let lat of clusterLatencies; let i = index; trackBy: trackByIndex">
               <div class="field-row">
                 <div class="field">
                   <label>Origen</label>
-                  <input type="text" [(ngModel)]="lat.src" (ngModelChange)="saveLatencies()" />
+                  <input type="text" [(ngModel)]="lat.src" />
                 </div>
                 <div class="field">
                   <label>Destino</label>
-                  <input type="text" [(ngModel)]="lat.dest" (ngModelChange)="saveLatencies()" />
+                  <input type="text" [(ngModel)]="lat.dest" />
                 </div>
                 <div class="field">
                   <label>Latencia (s)</label>
-                  <input type="number" step="0.001" [(ngModel)]="lat.latency" (ngModelChange)="saveLatencies()" />
+                  <input type="number" step="0.001" [(ngModel)]="lat.latency" />
                 </div>
               </div>
               <button class="btn-remove-sm" (click)="removeLatency(i)">✕</button>
@@ -186,6 +189,10 @@ type PanelMode = 'node' | 'edge' | 'global';
               Arrastra un <strong>Service</strong> al canvas para comenzar
             </div>
           </ng-container>
+        </div>
+
+        <div class="footer" *ngIf="settings">
+          <button class="btn-apply" (click)="saveSettings()">✓ Aplicar Cambios Globales</button>
         </div>
       </div>
     </ng-container>
@@ -224,7 +231,7 @@ type PanelMode = 'node' | 'edge' | 'global';
     .header-icon {
       font-size: 18px;
       color: $accent-blue;
-      &.edge-icon { color: #a0a0a0; }
+      &.edge-icon { color: var(--text-secondary); }
     }
     .header-title  { font-size: 14px; font-weight: 600; color: $text-primary; }
     .header-sub    { font-size: 10px; color: $text-secondary; }
@@ -313,9 +320,9 @@ type PanelMode = 'node' | 'edge' | 'global';
       cursor: pointer;
       padding: 4px 0;
       input { width: auto; accent-color: $accent-blue; }
-      .to-lbl { color: #7dd3fc; }
-      .rt-lbl { color: #bef264; }
-      .fb-lbl { color: #fcd34d; }
+      .to-lbl { color: var(--to-color); }
+      .rt-lbl { color: var(--rt-color); }
+      .fb-lbl { color: var(--fb-color); }
       &.disabled { opacity: 0.4; cursor: not-allowed; }
     }
 
@@ -354,6 +361,14 @@ type PanelMode = 'node' | 'edge' | 'global';
       width: 100%;
       &:hover { border-color: $accent-blue; color: $accent-blue; }
     }
+    .services-assoc { margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; }
+    .assoc-label { font-size: 10px; color: $text-secondary; margin-bottom: 6px; display: block; font-weight: 600; }
+    .assoc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .assoc-check {
+      display: flex; align-items: center; gap: 6px; font-size: 11px; color: $text-primary; cursor: pointer;
+      input { width: auto; accent-color: $accent-blue; }
+    }
+
     .empty-hint {
       color: $text-secondary;
       font-size: 12px;
@@ -376,8 +391,9 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   sourceEndpoints: string[] = [];
 
   // Global
-  settings: GlobalSettings = { logging: false, development: false, base_image: '' };
+  settings: GlobalSettings = { logging: true, development: true, base_image: '', clusters: [] };
   clusterLatencies: ClusterLatency[] = [];
+  graphRevision = 0;
 
   private subs = new Subscription();
 
@@ -388,6 +404,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.settings = this.graphService.getSettings();
+    if (!this.settings.clusters) this.settings.clusters = [];
     this.clusterLatencies = [...this.graphService.getClusterLatencies()];
 
     this.subs.add(this.graphService.nodeSelected$.subscribe(node => {
@@ -400,6 +417,7 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
       } else {
         this.mode = 'global';
         this.settings = this.graphService.getSettings();
+        if (!this.settings.clusters) this.settings.clusters = [];
         this.clusterLatencies = [...this.graphService.getClusterLatencies()];
       }
       this.cdr.detectChanges();
@@ -410,25 +428,91 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
       this.selectedEdge = edge;
       if (edge) {
         this.mode = 'edge';
-        this.edgeData = { ...edge.getData() } || {};
+        this.edgeData = { ...(edge.getData() ?? {}) };
         this.loadSourceEndpoints(edge);
       } else {
         this.mode = 'global';
         this.settings = this.graphService.getSettings();
+        if (!this.settings.clusters) this.settings.clusters = [];
         this.clusterLatencies = [...this.graphService.getClusterLatencies()];
       }
       this.cdr.detectChanges();
+    }));
+
+    this.subs.add(this.graphService.graphChanged$.subscribe(() => {
+      this.handleGraphChanged();
     }));
   }
 
   ngOnDestroy() { this.subs.unsubscribe(); }
 
+  setMode(mode: PanelMode) {
+    this.mode = mode;
+    this.activeTab = 'general';
+    this.cdr.detectChanges();
+  }
+
   /* ═══════════ Node ═══════════ */
   applyNodeData() {
     if (!this.selectedNode) return;
-    this.selectedNode.setData(this.pendingData);
+    this.selectedNode.setData(this.pendingData, { overwrite: true });
+    this.syncEndpointProtocols(this.pendingData.protocol || 'http');
     this.graphService.refreshNodeVisuals(this.selectedNode);
+    this.graphService.notifyApply();
     this.cdr.detectChanges();
+  }
+
+  private handleGraphChanged() {
+    this.graphRevision++;
+
+    if (this.selectedNode && !this.cellExists(this.selectedNode.id)) {
+      this.clearSelection();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (this.selectedEdge && !this.cellExists(this.selectedEdge.id)) {
+      this.clearSelection();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (this.selectedEdge) {
+      this.edgeData = { ...(this.selectedEdge.getData() ?? {}) };
+      this.loadSourceEndpoints(this.selectedEdge);
+    }
+
+    this.cdr.detectChanges();
+  }
+
+  private cellExists(cellId: string): boolean {
+    const graph = this.graphService.getGraph();
+    if (!graph) return false;
+    try {
+      return !!graph.getCellById(cellId);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  private clearSelection() {
+    this.selectedNode = null;
+    this.selectedEdge = null;
+    this.pendingData = {};
+    this.edgeData = {};
+    this.sourceEndpoints = [];
+    this.mode = 'global';
+    this.settings = this.graphService.getSettings();
+    if (!this.settings.clusters) this.settings.clusters = [];
+    this.clusterLatencies = [...this.graphService.getClusterLatencies()];
+  }
+
+  private syncEndpointProtocols(protocol: 'http' | 'grpc') {
+    const graph = this.graphService.getGraph();
+    if (!graph || !this.selectedNode) return;
+    graph.getEdges()
+      .filter(edge => edge.getSourceCellId() === this.selectedNode!.id)
+      .forEach(edge => edge.prop('data/protocol', protocol));
   }
 
   /* ═══════════ Edge ═══════════ */
@@ -436,33 +520,37 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
     const graph = this.graphService.getGraph();
     if (!graph) return;
     const srcCell = graph.getCellById(edge.getSourceCellId() as string);
-    const srcData = (srcCell?.isNode() ? (srcCell as any).getData() : {}) || {};
+    const srcData = (srcCell && (srcCell as any).isNode()) ? (srcCell as any).getData() : {};
     this.sourceEndpoints = (srcData.endpoints || []).map((ep: any) => ep.name).filter(Boolean);
     if (this.sourceEndpoints.length > 0 && !this.edgeData.sourceEndpoint) {
       this.edgeData.sourceEndpoint = this.sourceEndpoints[0];
+      this.applyEdgeData(); // Guardar selección automáticamente
     }
   }
 
   applyEdgeData() {
     if (!this.selectedEdge) return;
-    this.selectedEdge.setData({ ...this.edgeData });
+    this.selectedEdge.setData({ ...this.edgeData }, { overwrite: true });
   }
 
   sourceEndpointHasTimeout(): boolean {
-    return this.getSourceEndpointData()?.resilience_patterns?.timeout != null;
+    const rp = this.getSourceEndpointData()?.resilience_parameters || this.getSourceEndpointData()?.resilience_patterns;
+    return rp?.timeout != null;
   }
   sourceEndpointHasRetry(): boolean {
-    return this.getSourceEndpointData()?.resilience_patterns?.retry != null;
+    const rp = this.getSourceEndpointData()?.resilience_parameters || this.getSourceEndpointData()?.resilience_patterns;
+    return rp?.retry != null || rp?.exponential_backoff != null;
   }
   sourceEndpointHasFallback(): boolean {
-    return this.getSourceEndpointData()?.resilience_patterns?.fallback != null;
+    const rp = this.getSourceEndpointData()?.resilience_parameters || this.getSourceEndpointData()?.resilience_patterns;
+    return rp?.fallback != null;
   }
 
   private getSourceEndpointData(): any {
     const graph = this.graphService.getGraph();
     if (!graph || !this.selectedEdge) return null;
     const srcCell = graph.getCellById(this.selectedEdge.getSourceCellId() as string);
-    const srcData = (srcCell?.isNode() ? (srcCell as any).getData() : {}) || {};
+    const srcData = (srcCell && (srcCell as any).isNode()) ? (srcCell as any).getData() : {};
     const epName  = this.edgeData.sourceEndpoint;
     return (srcData.endpoints || []).find((ep: any) => ep.name === epName) || null;
   }
@@ -470,10 +558,39 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   /* ═══════════ Global ═══════════ */
   saveSettings() {
     this.graphService.setSettings({ ...this.settings });
+    this.graphService.notifyApply();
+  }
+
+  addGlobalCluster() {
+    if (!this.settings.clusters) this.settings.clusters = [];
+    this.settings.clusters.push({ name: 'cluster1', namespace: 'default'});
+    this.saveSettings();
+  }
+
+  removeGlobalCluster(i: number) {
+    if (this.settings.clusters) {
+      this.settings.clusters.splice(i, 1);
+      this.saveSettings();
+    }
+  }
+
+  toggleServiceInCluster(cluster: any, sName: string) {
+    if (!cluster.services) cluster.services = [];
+    const idx = cluster.services.indexOf(sName);
+    if (idx >= 0) cluster.services.splice(idx, 1);
+    else cluster.services.push(sName);
+    this.saveSettings();
+  }
+
+  getAllServiceNames(): string[] {
+    const g = this.graphService.getGraph();
+    if (!g) return [];
+    return g.getNodes().map(n => (n.getData() || {}).name).filter(Boolean);
   }
 
   saveLatencies() {
     this.graphService.setClusterLatencies([...this.clusterLatencies]);
+    this.graphService.notifyApply();
   }
 
   addLatency() {
@@ -484,5 +601,9 @@ export class PropertiesPanelComponent implements OnInit, OnDestroy {
   removeLatency(i: number) {
     this.clusterLatencies = this.clusterLatencies.filter((_, idx) => idx !== i);
     this.saveLatencies();
+  }
+
+  trackByIndex(index: number) {
+    return index;
   }
 }

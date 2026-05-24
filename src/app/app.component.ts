@@ -5,6 +5,7 @@ import { SidebarComponent } from './shared/components/sidebar/sidebar.component'
 import { EditorComponent } from './features/editor/editor.component';
 import { PropertiesPanelComponent } from './features/properties/properties-panel/properties-panel.component';
 import { ExportPreviewComponent } from './features/export-preview/export-preview.component';
+import { ThemeService } from './core/services/theme.service';
 
 @Component({
   selector: 'app-root',
@@ -46,6 +47,8 @@ import { ExportPreviewComponent } from './features/export-preview/export-preview
 export class AppComponent {
   title = 'hydragen-console';
   showPreview = false;
+
+  constructor(private themeService: ThemeService) {}
 
   closePreview() {
     this.showPreview = false;

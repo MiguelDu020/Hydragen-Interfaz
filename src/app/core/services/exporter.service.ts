@@ -5,148 +5,168 @@ import { HydraGenConfig, CalledService } from '../models/hydragen.model';
 
 @Injectable({ providedIn: 'root' })
 export class ExporterService {
-  constructor(private graphService: GraphService) {}
+  constructor(private graphService: GraphService) { }
 
-  private normalizeAnnotations(annotations: any): Record<string, string> | null {
-    if (!annotations) return null;
-    if (Array.isArray(annotations)) {
-      const result = annotations.reduce((acc: Record<string, string>, item: any, i: number) => {
-        if (item && typeof item.key === 'string' && item.key.length > 0) {
-          acc[item.key] = String(item.value ?? '');
-        } else {
-          acc[`annotation_${i}`] = String(item?.value ?? '');
-        }
-        return acc;
-      }, {});
-      return Object.keys(result).length > 0 ? result : null;
+  private buildResiliencePatterns(ep: any): any | null {
+    const rp = ep?.resilience_parameters || ep?.resilience_patterns || {};
+    const output: any = {};
+
+    if (rp.timeout) {
+      output.timeout = { duration: rp.timeout.duration_s ?? rp.timeout.duration };
     }
-    return Object.keys(annotations).length > 0 ? annotations : null;
+    if (rp.retry) {
+      output.exponential_backoff = {
+        initial: (rp.retry.backoff_ms ?? 100) / 1000,
+        max: (rp.retry.max_backoff_ms ?? 5000) / 1000,
+        multiplier: rp.retry.backoff_multiplier ?? 2.0,
+        max_attempts: rp.retry.max_attempts ?? 3
+      };
+    } else if (rp.exponential_backoff) {
+      output.exponential_backoff = { ...rp.exponential_backoff };
+    }
+    if (rp.fallback) {
+      const fb = rp.fallback;
+      output.fallback = {
+        type: fb.type || 'static',
+        ...(fb.type === 'static' ? {
+          response_code: fb.response_code ?? 200,
+          response_payload: fb.response_payload || 'fallback-response'
+        } : {
+          service: fb.service || 'fallback-service',
+          endpoint: fb.endpoint || 'fallback-endpoint',
+          port: fb.port ?? 80
+        })
+      };
+    }
+    if (rp.circuit_breaker) {
+      output.circuit_breaker = {
+        timeout: rp.circuit_breaker.timeout,
+        retry_timer: rp.circuit_breaker.retry_timer
+      };
+    }
+
+    return Object.keys(output).length > 0 ? output : null;
   }
 
-  generateConfig(): HydraGenConfig {
+  private normalizeAnnotations(annotations: any): any[] | null {
+    if (!annotations) return null;
+    if (Array.isArray(annotations)) {
+      return annotations
+        .filter(item => item && typeof item.name === 'string' && item.name.length > 0)
+        .map(item => ({
+          name: item.name,
+          value: String(item.value ?? '')
+        }));
+    }
+    // Si viene como objeto, convertir a array
+    return Object.entries(annotations).map(([name, value]) => ({
+      name,
+      value: String(value)
+    }));
+  }
+
+  generateConfig(options: { includeFaults?: boolean } = {}): HydraGenConfig {
     const graph = this.graphService.getGraph();
     if (!graph) throw new Error('Graph not initialized');
 
     const latencies = this.graphService.getClusterLatencies();
-    const settings  = this.graphService.getSettings();
-    const nodes     = graph.getNodes();
-    const allEdges  = graph.getEdges();
+    const rawSettings = this.graphService.getSettings();
+    const { clusters, ...settings } = rawSettings;
+    const nodes = graph.getNodes();
+    const allEdges = graph.getEdges();
 
     const services: any[] = nodes.map(node => {
       const nd = (node.getData() || {}) as any;
 
-      // --- Clusters ---
-      const clusters = (nd.clusters || [{ cluster: 'cluster1', replicas: 1, namespace: 'default' }])
-        .map((c: any) => {
-          const out: any = {
-            cluster:   c.cluster   || 'cluster1',
-            replicas:  c.replicas  ?? 1,
-            namespace: c.namespace || 'default'
-          };
-          if (c.node) out.node = c.node;
-          const ann = this.normalizeAnnotations(c.annotations);
-          if (ann) out.annotations = ann;
-          return out;
-        });
+      // --- Clusters (Replicas are now per-service) ---
+      const clusters = (nd.clusters || []).map((c: any) => {
+        // Try to find global definition for namespace fallback
+        return {
+          cluster: c.cluster,
+          replicas: nd.replicas ?? 1,
+          namespace: c.namespace
+        };
+      });
 
       // --- Service base ---
+      const serviceProtocol = nd.protocol || 'http';
       const service: any = {
-        name:           nd.name     || 'unnamed-service',
-        protocol:       nd.protocol || 'http',
+        name: nd.name || 'unnamed-service',
+        protocol: serviceProtocol,
         clusters,
-        resources:      nd.resources || { limits: { cpu: '1000m', memory: '1024M' }, requests: { cpu: '500m', memory: '256M' } },
-        processes:      nd.processes      ?? 0,
-        readiness_probe:nd.readiness_probe ?? 2
+        resources: nd.resources || { limits: { cpu: '1000m', memory: '1024M' }, requests: { cpu: '500m', memory: '256M' } },
+        processes: nd.processes ?? 0,
+        readiness_probe: nd.readiness_probe ?? 2
       };
-      if (nd.logging)     service.logging     = nd.logging;
-      if (nd.development) service.development = nd.development;
-      if (nd.base_image)  service.base_image  = nd.base_image;
+      if (nd.base_image) service.base_image = nd.base_image;
+      if (options.includeFaults && nd.fault_injection) {
+        service.fault_injection = {
+          ...nd.fault_injection
+        };
+      }
 
       // --- Outgoing edges for this node ---
       const outEdges = allEdges.filter(e => e.getSourceCellId() === node.id);
 
       // --- Endpoints ---
-      let rawEndpoints: any[] = JSON.parse(JSON.stringify(nd.endpoints || []));
-      if (rawEndpoints.length === 0) {
-        rawEndpoints = [{
-          name: 'end1',
-          execution_mode: 'sequential',
-          cpu_complexity: { execution_time: 0.001, threads: 1 },
-          network_complexity: { forward_requests: 'synchronous', response_payload_size: 0, called_services: [] }
-        }];
-      }
-
-      service.endpoints = rawEndpoints.map((ep: any, epIdx: number) => {
+      service.endpoints = (nd.endpoints || []).map((ep: any, epIdx: number) => {
         // Filter edges that belong to this endpoint
         const epEdges = outEdges.filter(edge => {
-          const edData = (edge.getData() || {}) as any;
-          const srcEp  = edData.sourceEndpoint;
-          // If no sourceEndpoint set, assign to first endpoint
-          return srcEp === ep.name || (srcEp === undefined && epIdx === 0);
+          const edData = edge.getData() || {};
+          const srcEp = edData.sourceEndpoint;
+          return srcEp === ep.name || (!srcEp && epIdx === 0);
         });
 
-        // Determine if endpoint has any pattern configured
-        const rp = ep.resilience_patterns || {};
-        const hasAnyPattern = !!(rp.timeout || rp.retry || rp.fallback);
-
         // Build called_services from graph edges
-        const calledServices: CalledService[] = epEdges.map(edge => {
-          const ed      = (edge.getData() || {}) as any;
+        const calledServices: any[] = epEdges.map(edge => {
+          const ed = edge.getData() || {};
           const tgtNode = graph.getCellById(edge.getTargetCellId() as string);
           const tgtData = (tgtNode?.isNode() ? (tgtNode as any).getData() : {}) || {};
 
-          const cs: CalledService = {
-            service:              tgtData.name   || 'unknown',
-            endpoint:             ed.targetEndpoint || (tgtData.endpoints?.[0]?.name) || 'end1',
-            port:                 ed.port     ?? 80,
-            protocol:             ed.protocol || tgtData.protocol || 'http',
-            traffic_forward_ratio:ed.traffic_forward_ratio ?? 1,
-            request_payload_size: ed.request_payload_size  ?? 0
+          const cs: any = {
+            service: tgtData.name || 'unknown',
+            endpoint: ed.targetEndpoint || (tgtData.endpoints?.[0]?.name) || 'end1',
+            port: ed.port ?? 80,
+            protocol: serviceProtocol,
+            traffic_forward_ratio: ed.traffic_forward_ratio ?? 1,
+            request_payload_size: ed.request_payload_size ?? 0,
+            active_circuit_breaker: ed.active_circuit_breaker === true
           };
 
-          // Add activation flags only when endpoint has patterns configured
-          if (hasAnyPattern) {
-            cs.active_timeout  = rp.timeout  ? (ed.active_timeout  ?? false) : false;
-            cs.active_retry    = rp.retry    ? (ed.active_retry    ?? false) : false;
-            cs.active_fallback = rp.fallback ? (ed.active_fallback ?? false) : false;
+          const resiliencePatterns = this.buildResiliencePatterns(ep);
+          if (resiliencePatterns) {
+            cs.resilience_patterns = resiliencePatterns;
           }
 
           return cs;
         });
 
-        // network_complexity
-        const nc: any = {
-          forward_requests:     ep.network_complexity?.forward_requests || (calledServices.length > 0 ? 'synchronous' : 'none'),
-          response_payload_size: ep.network_complexity?.response_payload_size ?? 0,
-          called_services:       calledServices
-        };
-
         // Build endpoint output
-        const endpointOut: any = {
-          name:           ep.name           || `end${epIdx + 1}`,
+        const endpointOutput: any = {
+          name: ep.name || `end${epIdx + 1}`,
           execution_mode: ep.execution_mode || 'sequential',
           cpu_complexity: {
-            execution_time: ep.cpu_complexity?.execution_time ?? 0.001,
-            threads:        ep.cpu_complexity?.threads        ?? 1
+            execution_time: ep.cpu_complexity?.execution_time || 0.001,
+            threads: ep.cpu_complexity?.threads || 1
           },
-          network_complexity: nc
+          network_complexity: {
+            forward_requests: ep.network_complexity?.forward_requests || (calledServices.length > 0 ? 'synchronous' : 'none'),
+            response_payload_size: ep.network_complexity?.response_payload_size || 0,
+            called_services: calledServices
+          }
         };
 
-        // Resilience patterns — include only enabled sub-objects
-        const rpOut: any = {};
-        if (rp.timeout)  rpOut.timeout  = { duration_ms: rp.timeout.duration_ms ?? 5000 };
-        if (rp.retry)    rpOut.retry    = { max_attempts: rp.retry.max_attempts ?? 3, backoff_ms: rp.retry.backoff_ms ?? 100, backoff_multiplier: rp.retry.backoff_multiplier ?? 2.0 };
-        if (rp.fallback) rpOut.fallback = { fallback_response: rp.fallback.fallback_response || 'default-response', trigger_on_error_rate: rp.fallback.trigger_on_error_rate ?? 0.5 };
-        if (Object.keys(rpOut).length > 0) endpointOut.resilience_patterns = rpOut;
-
-        return endpointOut;
+        return endpointOutput;
       });
 
       return service;
     });
 
-    const config: any = { settings, services };
-    if (latencies && latencies.length > 0) config.cluster_latencies = latencies;
+    const config: any = {
+      cluster_latencies: (latencies && latencies.length > 0) ? latencies : null,
+      services,
+      settings
+    };
     return config;
   }
 
@@ -155,8 +175,8 @@ export class ExporterService {
 
   downloadFile(content: string, filename: string, type: string) {
     const blob = new Blob([content], { type });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
