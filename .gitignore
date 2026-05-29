@@ -40,3 +40,9 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Python pipeline
+pipeline/venv/
+pipeline/__pycache__/
+pipeline/*.pyc
+pipeline/faults/
