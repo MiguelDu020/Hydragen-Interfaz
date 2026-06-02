@@ -459,32 +459,47 @@ def execute_pipeline(
 
         _append_log(job_id, "✓ Imagen distribuida a todos los nodos", 3, "INFO")
 
-        # ── STEP 4: Cleanup namespace ─────────────────────────────
+        # ── STEP 4: FULL namespace reset ─────────────────────────────
         if cleanup_namespace:
             run_path = hydragen_path
 
+            # Delete namespace (full cleanup)
             rc = run_command(
-                f"kubectl delete all --all -n {namespace}",
+                f"kubectl delete namespace {namespace} --ignore-not-found --wait=true",
                 run_path,
                 job_id,
                 4,
-                f"Limpiando namespace '{namespace}'..."
+                f"Eliminando namespace '{namespace}' completamente..."
             )
 
             if rc != 0:
-                if jobs[job_id]["status"] == "failed":
-                    return
+                raise RuntimeError(f"Error borrando namespace {namespace}")
 
-                raise RuntimeError(
-                    f"Cleanup del namespace falló con código {rc}"
-                )
-
-            _append_log(
+            # Recreate namespace
+            rc = run_command(
+                f"kubectl create namespace {namespace}",
+                run_path,
                 job_id,
-                f"✓ Namespace '{namespace}' limpiado correctamente",
                 4,
-                "INFO"
+                f"Recreando namespace '{namespace}'..."
             )
+
+            if rc != 0:
+                raise RuntimeError(f"Error creando namespace {namespace}")
+
+            # ── ADD ISTIO LABEL ─────────────────────────────
+            rc = run_command(
+                f"kubectl label namespace {namespace} istio-injection=enabled --overwrite",
+                run_path,
+                job_id,
+                4,
+                f"Activando Istio sidecar injection en '{namespace}'..."
+            )
+
+            if rc != 0:
+                raise RuntimeError(f"Error aplicando label Istio en {namespace}")
+
+            _append_log(job_id, f"✓ Namespace '{namespace}' reiniciado con Istio habilitado", 4, "INFO")
 
         # ── STEP 5: deploy.sh ────────────────────────────────────────────────
         #deploy_script = os.path.join(backend_dir, "deploy.sh")

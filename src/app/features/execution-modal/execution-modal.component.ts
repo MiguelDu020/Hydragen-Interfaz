@@ -294,6 +294,13 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
         return;
       }
 
+      console.log('=== PAYLOAD BACKEND ===');
+      console.log('cleanupNamespace:', this.cleanupNamespace);
+      console.log('namespace:', this.namespace);
+      console.log('hydragenPath:', this.hydragenPath);
+      console.log('sshPassword:', this.sshPassword ? '***' : '(vacío)');
+      console.log('sudoPassword:', this.sudoPassword ? '***' : '(vacío)');
+
       const sub = this.executionService
         .executeBenchmark(config, this.hydragenPath, this.sudoPassword, this.sshPassword, this.cleanupNamespace, this.namespace)
         .subscribe({

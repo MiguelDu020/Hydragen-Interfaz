@@ -98,7 +98,7 @@
           <label class="checkbox-label">
             <input type="checkbox" [(ngModel)]="cleanupNamespace" />
             <span class="checkmark"></span>
-            Limpiar namespace antes del deploy
+            Limpiar o crear namespace antes del deploy
           </label>
         </div>
 
@@ -114,11 +114,6 @@
             [(ngModel)]="namespace"
             placeholder="benchmark"
           />
-
-          <span class="field-hint">
-            Se ejecutará:
-            <code>kubectl delete all --all -n {{ namespace }}</code>
-          </span>
         </div>
 
         <div class="checkbox-row">
@@ -250,9 +245,6 @@
           <div class="status-msg status-success">
             <span>✓ Benchmark desplegado exitosamente en Kubernetes</span>
           </div>
-          <button class="btn btn-accent" (click)="showMetrics()">
-            <span class="icon"></span> Ver Métricas (Grafana)
-          </button>
           <button class="btn btn-primary" (click)="close()">Cerrar</button>
         </ng-container>
 

@@ -1,5 +1,6 @@
 import { Component, Input, OnChanges, SimpleChanges, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { GraphService } from '../../../../core/services/graph.service';
 
 @Component({
   selector: 'app-resilience-tab',
@@ -68,19 +69,56 @@ import { CommonModule } from '@angular/common';
 export class ResilienceTabComponent implements OnChanges {
   @Input() nodeData: any = {};
   @Output() goToEndpoints = new EventEmitter<void>();
+  constructor(private graphService: GraphService) {}
 
   rows: Array<{ name: string; timeout: string; retry: string; fallback: string; cb: string }> = [];
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['nodeData'] && this.nodeData) {
+
+      const graph = this.graphService.getGraph();
+      if (!graph) return;
+
+      const edges = graph.getEdges().filter(e => {
+        const src = e.getSourceNode();
+        return src?.getData()?.name === this.nodeData.name;
+      });
+
       this.rows = (this.nodeData.endpoints || []).map((ep: any) => {
+
         const rp = ep.resilience_parameters || {};
+
+        // edges asociados a este endpoint
+        const epEdges = edges.filter(e => {
+          const data = e.getData() || {};
+          return data.sourceEndpoint === ep.name || (!data.sourceEndpoint);
+        });
+
+        const edgePatterns = epEdges.map(e => e.getData()?.resilience_parameters || {});
+
+        const hasTimeout = rp.timeout || edgePatterns.some(p => p.timeout);
+        const hasRetry = rp.retry || edgePatterns.some(p => p.retry);
+        const hasFallback = rp.fallback || edgePatterns.some(p => p.fallback);
+        const hasCB = rp.circuit_breaker || edgePatterns.some(p => p.circuit_breaker);
+
         return {
-          name:     ep.name || '?',
-          timeout:  rp.timeout  ? `[X] ${rp.timeout.duration_s}s`                                          : '',
-          retry:    rp.retry    ? `[X] ${rp.retry.max_attempts} intentos`                                    : '',
-          fallback: rp.fallback ? `[X] ${rp.fallback.type === 'static' ? 'static:' + rp.fallback.response_code : 'svc:' + rp.fallback.service}` : '',
-          cb:       rp.circuit_breaker ? `[X] TO:${rp.circuit_breaker.timeout}s` : ''
+          name: ep.name || '?',
+
+          timeout: hasTimeout
+            ? `[X]`
+            : '',
+
+          retry: hasRetry
+            ? `[X]`
+            : '',
+
+          fallback: hasFallback
+            ? `[X]`
+            : '',
+
+          cb: hasCB
+            ? `[X]`
+            : ''
         };
       });
     }

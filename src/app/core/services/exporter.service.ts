@@ -133,7 +133,7 @@ export class ExporterService {
             active_circuit_breaker: ed.active_circuit_breaker === true
           };
 
-          const resiliencePatterns = this.buildResiliencePatterns(ep);
+          const resiliencePatterns = this.buildResiliencePatterns(ed);
           if (resiliencePatterns) {
             cs.resilience_patterns = resiliencePatterns;
           }
@@ -155,6 +155,12 @@ export class ExporterService {
             called_services: calledServices
           }
         };
+
+        const endpointResilience = this.buildResiliencePatterns(ep);
+
+        if (endpointResilience) {
+          endpointOutput.resilience_patterns = endpointResilience;
+        }
 
         return endpointOutput;
       });

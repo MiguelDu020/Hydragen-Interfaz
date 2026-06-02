@@ -52,7 +52,7 @@ export class ExecutionService {
       hydragen_path: hydragenPath,
       sudo_password: sudoPassword,
       ssh_password: sshPassword,
-      cleanupNamespace: cleanupNamespace,
+      cleanup_namespace: cleanupNamespace,
       namespace: namespace
     });
   }
