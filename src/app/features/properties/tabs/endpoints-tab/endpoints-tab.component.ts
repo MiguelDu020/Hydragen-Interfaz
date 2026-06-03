@@ -140,12 +140,14 @@ import { GraphService } from '../../../../core/services/graph.service';
 
               <!-- TIMEOUT (per-edge) -->
               <div class="pattern-block">
-                <label class="pattern-toggle">
+                <label class="pattern-toggle"
+                  [class.pattern-disabled]="isCircuitBreakerActive(row)">
                   <input type="checkbox"
                     [checked]="!!row.edgeData.resilience_parameters?.timeout"
                     [disabled]="isCircuitBreakerActive(row)"
                     (change)="toggleEdgePattern(row, 'timeout', $event)" />
                   <span class="to-label">Timeout</span>
+                  <span class="excl-hint" *ngIf="isCircuitBreakerActive(row)">— exclusivo con CB</span>
                 </label>
                 <div class="pattern-fields" *ngIf="row.edgeData.resilience_parameters?.timeout">
                   <div class="field">
@@ -159,12 +161,14 @@ import { GraphService } from '../../../../core/services/graph.service';
 
               <!-- RETRY (per-edge) -->
               <div class="pattern-block">
-                <label class="pattern-toggle">
+                <label class="pattern-toggle"
+                  [class.pattern-disabled]="isCircuitBreakerActive(row)">
                   <input type="checkbox"
                     [checked]="!!row.edgeData.resilience_parameters?.retry"
                     [disabled]="isCircuitBreakerActive(row)"
                     (change)="toggleEdgePattern(row, 'retry', $event)" />
                   <span class="rt-label">Retry</span>
+                  <span class="excl-hint" *ngIf="isCircuitBreakerActive(row)">— exclusivo con CB</span>
                 </label>
                 <div class="pattern-fields" *ngIf="row.edgeData.resilience_parameters?.retry">
                   <div class="field-row">
@@ -273,13 +277,14 @@ import { GraphService } from '../../../../core/services/graph.service';
 
               <!-- CIRCUIT BREAKER activation flag (per-edge, only if ep has CB configured) -->
               <div class="activation-flags" *ngIf="ep.resilience_parameters?.circuit_breaker">
-                <label class="flag-toggle">
+                <label class="flag-toggle"
+                  [class.pattern-disabled]="!!row.edgeData.resilience_parameters?.timeout || !!row.edgeData.resilience_parameters?.retry">
                   <input type="checkbox"
                     [ngModel]="row.edgeData.active_circuit_breaker"
-                    [disabled]="row.edgeData.resilience_parameters?.timeout ||
-              row.edgeData.resilience_parameters?.retry"
+                    [disabled]="!!row.edgeData.resilience_parameters?.timeout || !!row.edgeData.resilience_parameters?.retry"
                     (ngModelChange)="updateEdge(row.edge, 'active_circuit_breaker', $event)" />
                   <span class="cb-label">Activar Circuit Breaker</span>
+                  <span class="excl-hint" *ngIf="!!row.edgeData.resilience_parameters?.timeout || !!row.edgeData.resilience_parameters?.retry">— exclusivo con TO/RT</span>
                 </label>
               </div>
 
@@ -425,6 +430,18 @@ import { GraphService } from '../../../../core/services/graph.service';
       .rt-label { color: var(--rt-color); }
       .fb-label { color: var(--fb-color); }
       .cb-label { color: #ce93d8; }
+      &.pattern-disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        input { cursor: not-allowed; }
+      }
+    }
+    .excl-hint {
+      font-size: 9px;
+      font-weight: 400;
+      color: $text-secondary;
+      font-style: italic;
+      margin-left: 2px;
     }
     .pattern-fields {
       padding: 10px; background: var(--bg-primary);
@@ -594,29 +611,41 @@ export class EndpointsTabComponent implements OnChanges {
   }
 
   // ── Edge-level pattern toggle (Timeout, Retry, Fallback) ─────────────────
+  // Rules: TO ↔ RT ↔ CB are mutually exclusive. FB is compatible with all.
   toggleEdgePattern(row: any, pattern: 'timeout' | 'retry' | 'fallback', event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
-    if (!row.edgeData.resilience_parameters) row.edgeData.resilience_parameters = {};
-    const rp = row.edgeData.resilience_parameters;
+
+    // Always read FRESH data directly from the graph edge to avoid stale row.edgeData
+    const edge: Edge = row.edge;
+    const freshData: any = JSON.parse(JSON.stringify(edge.getData() || {}));
+    if (!freshData.resilience_parameters) freshData.resilience_parameters = {};
+    const rp = freshData.resilience_parameters;
 
     if (checked) {
-      // Timeout, Retry are mutually exclusive with each other
       if (pattern === 'timeout') {
+        // TO is exclusive with RT; also deactivate CB
         delete rp.retry;
+        freshData.active_circuit_breaker = false;
         rp.timeout = { duration_s: 5 };
       } else if (pattern === 'retry') {
+        // RT is exclusive with TO; also deactivate CB
         delete rp.timeout;
+        freshData.active_circuit_breaker = false;
         rp.retry = { max_attempts: 3, backoff_ms: 100, backoff_multiplier: 2.0, max_backoff_ms: 5000 };
       } else if (pattern === 'fallback') {
-        // Fallback is compatible with all others
+        // FB is compatible with all — no exclusions
         rp.fallback = { type: 'static', response_code: 200, response_payload: 'fallback-response' };
       }
     } else {
       delete rp[pattern];
-      if (Object.keys(rp).length === 0) delete row.edgeData.resilience_parameters;
+      if (Object.keys(rp).length === 0) delete freshData.resilience_parameters;
     }
 
-    this.persistEdgeData(row);
+    // Sync back to row so in-template fields (fields shown below the checkbox) reflect the new state
+    row.edgeData = freshData;
+    edge.setData(freshData, { overwrite: true });
+    this.refreshAllEdges();
+    this.emit();
   }
 
   // Update a single nested field inside an edge's resilience_parameters
@@ -730,7 +759,10 @@ export class EndpointsTabComponent implements OnChanges {
         const tgtData = (tgtCell?.isNode() ? (tgtCell as any).getData() : {}) || {};
         return {
           edge,
-          edgeData: { ...ed },
+          // Deep copy so row.edgeData is fully independent from the edge's internal data.
+          // A shallow copy would share object references, causing silent mutations and
+          // stale reads when reading edge.getData() later in persistEdgeData.
+          edgeData: JSON.parse(JSON.stringify(ed)),
           targetName: tgtData.name || 'unknown',
           targetEndpoint: ed.targetEndpoint || tgtData.endpoints?.[0]?.name || 'end1'
         };

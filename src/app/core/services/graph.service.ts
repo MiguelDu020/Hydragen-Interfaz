@@ -96,11 +96,24 @@ export class GraphService {
     const data = (node.getData() || {}) as any;
     const endpoints: any[] = data.endpoints || [];
 
+    // Collect resilience patterns from endpoint-level data
+    const hasEpTimeout  = endpoints.some((ep: any) => ep.resilience_parameters?.timeout);
+    const hasEpRetry    = endpoints.some((ep: any) => ep.resilience_parameters?.retry);
+    const hasEpFallback = endpoints.some((ep: any) => ep.resilience_parameters?.fallback);
+    const hasEpCB       = endpoints.some((ep: any) => ep.resilience_parameters?.circuit_breaker);
+
+    // Also collect resilience patterns from outgoing edges (set in endpoints-tab per-edge)
+    const outEdges = this.graph ? this.graph.getEdges().filter(e => e.getSourceCellId() === node.id) : [];
+    const hasEdgeTimeout  = outEdges.some(e => (e.getData() as any)?.resilience_parameters?.timeout);
+    const hasEdgeRetry    = outEdges.some(e => (e.getData() as any)?.resilience_parameters?.retry);
+    const hasEdgeFallback = outEdges.some(e => (e.getData() as any)?.resilience_parameters?.fallback);
+    const hasEdgeCB       = outEdges.some(e => (e.getData() as any)?.resilience_parameters?.circuit_breaker);
+
     const badges: string[] = [];
-    if (endpoints.some((ep: any) => ep.resilience_parameters?.timeout)) badges.push('TO');
-    if (endpoints.some((ep: any) => ep.resilience_parameters?.retry)) badges.push('RT');
-    if (endpoints.some((ep: any) => ep.resilience_parameters?.fallback)) badges.push('FB');
-    if (endpoints.some((ep: any) => ep.resilience_parameters?.circuit_breaker)) badges.push('CB');
+    if (hasEpTimeout  || hasEdgeTimeout)  badges.push('TO');
+    if (hasEpRetry    || hasEdgeRetry)    badges.push('RT');
+    if (hasEpFallback || hasEdgeFallback) badges.push('FB');
+    if (hasEpCB       || hasEdgeCB)       badges.push('CB');
     if (data.fault_injection && data.fault_injection.type && data.fault_injection.type !== 'none') {
       badges.push('FI');
     }
