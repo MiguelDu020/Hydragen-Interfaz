@@ -30,7 +30,7 @@ export class ExecutionService {
 
   constructor(
     private http: HttpClient,
-    private ngZone: NgZone
+    private ngZone: NgZone,
   ) {}
 
   /** Check that the backend is reachable */
@@ -45,7 +45,8 @@ export class ExecutionService {
     sudoPassword = '',
     sshPassword = '',
     cleanupNamespace: boolean,
-    namespace = ''
+    namespace = '',
+    username = '',
   ): Observable<ExecuteResponse> {
     return this.http.post<ExecuteResponse>(`${this.API_URL}/execute`, {
       config,
@@ -53,7 +54,8 @@ export class ExecutionService {
       sudo_password: sudoPassword,
       ssh_password: sshPassword,
       cleanup_namespace: cleanupNamespace,
-      namespace: namespace
+      namespace: namespace,
+      username: username,
     });
   }
 
@@ -63,19 +65,31 @@ export class ExecutionService {
   }
 
   /** POST /apply-faults — apply configured fault injections to architecture */
-  applyFaults(config: any, sudoPassword = ''): Observable<{ status: string; message: string; logs: string[] }> {
-    return this.http.post<{ status: string; message: string; logs: string[] }>(`${this.API_URL}/apply-faults`, {
-      config,
-      sudo_password: sudoPassword
-    });
+  applyFaults(
+    config: any,
+    sudoPassword = '',
+  ): Observable<{ status: string; message: string; logs: string[] }> {
+    return this.http.post<{ status: string; message: string; logs: string[] }>(
+      `${this.API_URL}/apply-faults`,
+      {
+        config,
+        sudo_password: sudoPassword,
+      },
+    );
   }
 
   /** POST /remove-faults — remove configured fault injection VirtualServices */
-  removeFaults(config: any, sudoPassword = ''): Observable<{ status: string; message: string; logs: string[] }> {
-    return this.http.post<{ status: string; message: string; logs: string[] }>(`${this.API_URL}/remove-faults`, {
-      config,
-      sudo_password: sudoPassword
-    });
+  removeFaults(
+    config: any,
+    sudoPassword = '',
+  ): Observable<{ status: string; message: string; logs: string[] }> {
+    return this.http.post<{ status: string; message: string; logs: string[] }>(
+      `${this.API_URL}/remove-faults`,
+      {
+        config,
+        sudo_password: sudoPassword,
+      },
+    );
   }
 
   /** GET /status/{jobId} — one-shot status poll */
@@ -128,7 +142,9 @@ export class ExecutionService {
 
   /** GET /metrics/start — starts the port-forward process */
   startMetrics(): Observable<{ status: string; url: string }> {
-    return this.http.get<{ status: string; url: string }>(`${this.API_URL}/metrics/start`);
+    return this.http.get<{ status: string; url: string }>(
+      `${this.API_URL}/metrics/start`,
+    );
   }
 
   /** GET /metrics/stop — stops the port-forward process */

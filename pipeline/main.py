@@ -42,6 +42,8 @@ class ExecuteRequest(BaseModel):
     cleanup_namespace: bool = False
     namespace: Optional[str] = "default"
 
+    username: Optional[str] = ""
+
 
 class ExecuteResponse(BaseModel):
     job_id: str
@@ -384,7 +386,8 @@ def execute_pipeline(
     sudo_password: str,
     ssh_password: str,
     cleanup_namespace: bool,
-    namespace: str
+    namespace: str,
+    username: str
 ) -> None:
     """Full HydraGen pipeline — runs in a dedicated thread."""
     # Carpeta donde están los scripts (backend/)
@@ -426,8 +429,9 @@ def execute_pipeline(
         ##sudo chown sistemas:sistemas hydragen-emulator.tar
         # ── STEP 2.5: chage the owner of the image ─────────────────────
         run_path = os.path.join(hydragen_path, "generator/generated")
+        owner = username or "root"
         rc = run_command(
-            f"echo '{sudo_password}' | sudo chown sistemas:sistemas hydragen-emulator.tar",
+            f"echo '{sudo_password}' | sudo chown {owner}:{owner} hydragen-emulator.tar",
             run_path,
             job_id,
             3,
@@ -568,7 +572,7 @@ def execute(req: ExecuteRequest):
     t = threading.Thread(
         target=execute_pipeline,
         args=(job_id, req.config, req.hydragen_path, req.sudo_password or "", req.ssh_password or "", req.cleanup_namespace,
-        req.namespace or ""),
+        req.namespace or "", req.username or ""),
         daemon=True
     )
     t.start()

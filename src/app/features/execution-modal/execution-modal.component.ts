@@ -43,6 +43,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
   @ViewChild('logsPanel') logsPanel!: ElementRef<HTMLDivElement>;
 
   // ── Config view ────────────────────────────────────────────────────────────
+  username = '';
   hydragenPath = '';
   hydragenPaths: string[] = [];
   sshPassword = '';
@@ -84,8 +85,8 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
   constructor(
     private exporterService: ExporterService,
     private executionService: ExecutionService,
-    private ngZone: NgZone
-  ) { }
+    private ngZone: NgZone,
+  ) {}
 
   ngOnInit(): void {
     this.loadPaths();
@@ -112,7 +113,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
   private saveSuccessfulPath(path: string): void {
     if (!path) return;
     // Remove if already exists to move it to the front (most recent)
-    const filtered = this.hydragenPaths.filter(p => p !== path);
+    const filtered = this.hydragenPaths.filter((p) => p !== path);
     this.hydragenPaths = [path, ...filtered].slice(0, 5); // Keep last 5
     localStorage.setItem('hydragen_paths', JSON.stringify(this.hydragenPaths));
   }
@@ -130,7 +131,11 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
       { num: 5, label: 'Desplegar en Kubernetes', status: 'pending' },
     ];
     if (this.hasFaultInjections()) {
-      baseSteps.push({ num: 6, label: 'Aplicar inyección de fallas', status: 'pending' });
+      baseSteps.push({
+        num: 6,
+        label: 'Aplicar inyección de fallas',
+        status: 'pending',
+      });
     }
     this.steps = baseSteps;
   }
@@ -178,7 +183,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
 
   cancelar(): void {
     if (!this.jobId || this.jobStatus !== 'running') return;
-    
+
     this.isCancelling = true;
     const sub = this.executionService.cancelBenchmark(this.jobId).subscribe({
       next: () => {
@@ -188,7 +193,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
       error: (err) => {
         console.error('Error al cancelar:', err);
         this.isCancelling = false;
-      }
+      },
     });
     this.subs.push(sub);
   }
@@ -227,19 +232,27 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
 
   stepIcon(s: PipelineStep): string {
     switch (s.status) {
-      case 'done': return '✓';
-      case 'running': return '⟳';
-      case 'error': return '✗';
-      default: return '○';
+      case 'done':
+        return '✓';
+      case 'running':
+        return '⟳';
+      case 'error':
+        return '✗';
+      default:
+        return '○';
     }
   }
 
   stepLabel(s: PipelineStep): string {
     switch (s.status) {
-      case 'done': return 'Completado';
-      case 'running': return 'En progreso...';
-      case 'error': return 'Fallido';
-      default: return 'Pendiente';
+      case 'done':
+        return 'Completado';
+      case 'running':
+        return 'En progreso...';
+      case 'error':
+        return 'Fallido';
+      default:
+        return 'Pendiente';
     }
   }
 
@@ -262,7 +275,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
         console.error('Error starting metrics:', err);
         this.loadingMetrics = false;
         // Even if error, try to show the iframe in case it's already running manually
-      }
+      },
     });
     this.subs.push(sub);
   }
@@ -273,7 +286,7 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
 
   private stopMetrics(): void {
     const sub = this.executionService.stopMetrics().subscribe({
-      error: (err) => console.warn('Error stopping metrics:', err)
+      error: (err) => console.warn('Error stopping metrics:', err),
     });
     this.subs.push(sub);
   }
@@ -302,7 +315,15 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
       console.log('sudoPassword:', this.sudoPassword ? '***' : '(vacío)');
 
       const sub = this.executionService
-        .executeBenchmark(config, this.hydragenPath, this.sudoPassword, this.sshPassword, this.cleanupNamespace, this.namespace)
+        .executeBenchmark(
+          config,
+          this.hydragenPath,
+          this.sudoPassword,
+          this.sshPassword,
+          this.cleanupNamespace,
+          this.namespace,
+          this.username,
+        )
         .subscribe({
           next: ({ job_id }) => {
             this.jobId = job_id;
@@ -314,7 +335,8 @@ export class ExecutionModalComponent implements OnInit, OnDestroy {
             this.pollStatus(job_id);
           },
           error: (err) => {
-            this.backendError = 'No se pudo conectar al backend. ¿Está corriendo en el puerto 8000?';
+            this.backendError =
+              'No se pudo conectar al backend. ¿Está corriendo en el puerto 8000?';
             this.isStarting = false;
           },
         });

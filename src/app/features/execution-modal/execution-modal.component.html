@@ -3,7 +3,6 @@
      ══════════════════════════════════════════════════════════ -->
 <div class="exec-overlay" (click)="close()">
   <div class="exec-modal" (click)="$event.stopPropagation()">
-
     <!-- ── Modal Header ──────────────────────────────────────── -->
     <div class="exec-header">
       <div class="exec-title">
@@ -17,9 +16,7 @@
          VISTA 1 — Configuración previa
          ════════════════════════════════════════════════════════ -->
     <ng-container *ngIf="view === 'config'">
-
       <div class="exec-body config-body">
-
         <!-- Backend error banner -->
         <div class="alert alert-error" *ngIf="backendError">
           <span class="alert-icon">⚠</span>
@@ -27,19 +24,49 @@
         </div>
 
         <!-- SSH warning confirmation -->
-        <div class="alert alert-warn" *ngIf="sshWarningAccepted && !sshPassword">
+        <div
+          class="alert alert-warn"
+          *ngIf="sshWarningAccepted && !sshPassword"
+        >
           <div class="alert-icon">⚠</div>
           <div class="alert-body">
             <strong>¿Continuar sin contraseña SSH?</strong>
-            <p>Esto solo funciona si tienes autenticación por clave SSH configurada en todos los nodos del clúster. Si no es así, el push de imagen fallará.</p>
+            <p>
+              Esto solo funciona si tienes autenticación por clave SSH
+              configurada en todos los nodos del clúster. Si no es así, el push
+              de imagen fallará.
+            </p>
             <div class="alert-actions">
-              <button class="btn btn-warn-outline" (click)="cancelSshWarning()">Cancelar</button>
-              <button class="btn btn-warn" (click)="confirmNoSsh()">Sí, continuar sin contraseña</button>
+              <button class="btn btn-warn-outline" (click)="cancelSshWarning()">
+                Cancelar
+              </button>
+              <button class="btn btn-warn" (click)="confirmNoSsh()">
+                Sí, continuar sin contraseña
+              </button>
             </div>
           </div>
         </div>
 
         <!-- Form fields -->
+
+        <div class="field-group">
+          <label class="field-label" for="username">
+            Usuario Linux <span class="optional-tag">(opcional)</span>
+          </label>
+
+          <input
+            id="username"
+            class="field-input"
+            type="text"
+            [(ngModel)]="username"
+            placeholder="root"
+          />
+
+          <span class="field-hint">
+            Usuario utilizado para ejecutar comandos en el servidor. Si se deja
+            vacío se utilizará el usuario por defecto.
+          </span>
+        </div>
         <div class="field-group">
           <label class="field-label" for="hydragenPath">
             Ruta de HydraGen <span class="required">*</span>
@@ -55,7 +82,10 @@
           <datalist id="pathHistory">
             <option *ngFor="let p of hydragenPaths" [value]="p"></option>
           </datalist>
-          <span class="field-hint">Ruta absoluta al directorio raíz de HydraGen en el servidor Linux.</span>
+          <span class="field-hint"
+            >Ruta absoluta al directorio raíz de HydraGen en el servidor
+            Linux.</span
+          >
         </div>
 
         <div class="field-group">
@@ -70,13 +100,18 @@
             placeholder="Dejar vacío si usas clave SSH"
           />
           <div class="field-hint ssh-hint">
-            <span>Requerida para distribuir la imagen a los nodos del clúster.</span>
+            <span
+              >Requerida para distribuir la imagen a los nodos del
+              clúster.</span
+            >
             <div class="ssh-warn-inline">
               <span class="warn-badge">⚠ sshpass</span>
               Requiere <code>sshpass</code> instalado en el servidor:
               <code class="cmd-snippet">sudo apt install sshpass</code>
             </div>
-            <span class="hint-optional">Si ya tienes clave SSH configurada, deja este campo vacío.</span>
+            <span class="hint-optional"
+              >Si ya tienes clave SSH configurada, deja este campo vacío.</span
+            >
           </div>
         </div>
 
@@ -91,7 +126,10 @@
             [(ngModel)]="sudoPassword"
             placeholder="Dejar vacío si containerd no requiere sudo"
           />
-          <span class="field-hint">Dejar vacío si el usuario tiene acceso directo a containerd sin <code>sudo</code>.</span>
+          <span class="field-hint"
+            >Dejar vacío si el usuario tiene acceso directo a containerd sin
+            <code>sudo</code>.</span
+          >
         </div>
 
         <div class="field-group">
@@ -123,8 +161,8 @@
             Verificar backend antes de ejecutar
           </label>
         </div>
-
-      </div><!-- /config-body -->
+      </div>
+      <!-- /config-body -->
 
       <!-- Config footer -->
       <div class="exec-footer">
@@ -138,21 +176,16 @@
           <span *ngIf="!isStarting">▶ Iniciar Pipeline</span>
           <span *ngIf="isStarting">Iniciando...</span>
         </button>
-      </div>
-
-    </ng-container><!-- /view config -->
-
+      </div> </ng-container
+    ><!-- /view config -->
 
     <!-- ════════════════════════════════════════════════════════
          VISTA 2 — Pipeline en ejecución
          ════════════════════════════════════════════════════════ -->
     <ng-container *ngIf="view === 'running'">
-
       <div class="exec-body running-body">
-
         <!-- ── Left: Pipeline steps ─────────────────────────── -->
         <div class="pipeline-panel">
-
           <div class="pipeline-steps">
             <div
               class="step-item"
@@ -163,10 +196,9 @@
               [class.step-pending]="s.status === 'pending'"
             >
               <div class="step-indicator">
-                <span
-                  class="step-icon"
-                  [class.spin]="s.status === 'running'"
-                >{{ stepIcon(s) }}</span>
+                <span class="step-icon" [class.spin]="s.status === 'running'">{{
+                  stepIcon(s)
+                }}</span>
                 <div class="step-connector" *ngIf="s.num < totalSteps"></div>
               </div>
               <div class="step-info">
@@ -199,8 +231,8 @@
             <span class="timer-label">Tiempo transcurrido:</span>
             <span class="timer-value">{{ formatElapsed() }}</span>
           </div>
-
-        </div><!-- /pipeline-panel -->
+        </div>
+        <!-- /pipeline-panel -->
 
         <!-- ── Right: Logs terminal ─────────────────────────── -->
         <div class="logs-panel">
@@ -208,26 +240,28 @@
             <span class="terminal-dot red"></span>
             <span class="terminal-dot yellow"></span>
             <span class="terminal-dot green"></span>
-            <span class="logs-step-name">{{ stepName || 'Esperando...' }}</span>
+            <span class="logs-step-name">{{ stepName || "Esperando..." }}</span>
           </div>
           <div class="logs-body" #logsPanel>
             <div
               class="log-line"
               *ngFor="let log of logs"
               [ngClass]="logLineClass(log)"
-            >{{ log.line }}</div>
+            >
+              {{ log.line }}
+            </div>
             <div class="log-cursor" *ngIf="isRunning">█</div>
             <div class="log-empty" *ngIf="logs.length === 0">
               Esperando output del pipeline...
             </div>
           </div>
-        </div><!-- /logs-panel -->
-
-      </div><!-- /running-body -->
+        </div>
+        <!-- /logs-panel -->
+      </div>
+      <!-- /running-body -->
 
       <!-- Running footer -->
       <div class="exec-footer">
-
         <!-- Status: running -->
         <ng-container *ngIf="isRunning">
           <button
@@ -251,18 +285,21 @@
         <!-- Status: failed -->
         <ng-container *ngIf="isFailed">
           <div class="status-msg status-error">
-            <span>✗ Error en el paso {{ currentStep }}: {{ errorMessage }}</span>
+            <span
+              >✗ Error en el paso {{ currentStep }}: {{ errorMessage }}</span
+            >
           </div>
           <div class="footer-actions">
-            <button class="btn btn-ghost" (click)="retry()">↩ Reintentar</button>
-            <button class="btn btn-danger-outline" (click)="close()">Cerrar</button>
+            <button class="btn btn-ghost" (click)="retry()">
+              ↩ Reintentar
+            </button>
+            <button class="btn btn-danger-outline" (click)="close()">
+              Cerrar
+            </button>
           </div>
         </ng-container>
-
-      </div>
-
-    </ng-container><!-- /view running -->
-
+      </div> </ng-container
+    ><!-- /view running -->
 
     <!-- ════════════════════════════════════════════════════════
          VISTA 3 — Métricas Grafana
@@ -273,8 +310,8 @@
           <span class="spinner large"></span>
           <p>Iniciando port-forward a Grafana...</p>
         </div>
-        
-        <iframe 
+
+        <iframe
           *ngIf="!loadingMetrics"
           [src]="metricsUrl | safeUrl"
           class="metrics-iframe"
@@ -283,11 +320,18 @@
       </div>
 
       <div class="exec-footer">
-        <p class="metrics-hint">Puerto local 3000 -> Prometheus Grafana (monitoring)</p>
-        <button class="btn btn-ghost" (click)="hideMetrics()">↩ Volver a Logs</button>
-        <button class="btn btn-primary" (click)="close()">Finalizar todo</button>
+        <p class="metrics-hint">
+          Puerto local 3000 -> Prometheus Grafana (monitoring)
+        </p>
+        <button class="btn btn-ghost" (click)="hideMetrics()">
+          ↩ Volver a Logs
+        </button>
+        <button class="btn btn-primary" (click)="close()">
+          Finalizar todo
+        </button>
       </div>
     </ng-container>
-
-  </div><!-- /exec-modal -->
-</div><!-- /exec-overlay -->
+  </div>
+  <!-- /exec-modal -->
+</div>
+<!-- /exec-overlay -->
