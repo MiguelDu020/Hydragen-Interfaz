@@ -1,27 +1,114 @@
-# HydragenConsole
+# HydraGen Console
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 17.3.17.
+Interfaz web desarrollada en Angular para la configuración, generación y despliegue de benchmarks utilizando HydraGen.
 
-## Development server
+## Requisitos
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+### Frontend
 
-## Code scaffolding
+- Node.js 18+ (recomendado)
+- npm
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+### Backend
 
-## Build
+- Python 3.10+
+- pip
+- virtualenv (opcional pero recomendado)
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+---
 
-## Running unit tests
+# Ejecución del Frontend
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+Instalar dependencias:
 
-## Running end-to-end tests
+```bash
+npm install
+```
 
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
+Iniciar la aplicación Angular en modo desarrollo:
 
-## Further help
+```bash
+npm start
+```
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+La interfaz estará disponible en:
+
+```text
+http://localhost:4200
+```
+
+---
+
+# Ejecución del Backend (FastAPI)
+
+Entrar al directorio del backend:
+
+```bash
+cd pipeline
+```
+
+Crear un entorno virtual:
+
+```bash
+python -m venv venv
+```
+
+Activar el entorno virtual:
+
+### Linux / macOS
+
+```bash
+source venv/bin/activate
+```
+
+### Windows (PowerShell)
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+Instalar dependencias:
+
+```bash
+pip install -r requirements.txt
+```
+
+Ejecutar el backend:
+
+```bash
+./run.sh
+```
+
+El servicio FastAPI quedará disponible en:
+
+```text
+http://localhost:8000
+```
+
+---
+
+# Ejecución completa
+
+Para utilizar la aplicación correctamente deben estar ejecutándose:
+
+1. Frontend Angular
+
+```bash
+npm start
+```
+
+2. Backend FastAPI
+
+```bash
+cd pipeline
+./run.sh
+```
+
+Una vez ambos servicios estén activos, acceder a:
+
+```text
+http://localhost:4200
+```
+
+---
+
